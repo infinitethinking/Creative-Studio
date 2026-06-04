@@ -37,26 +37,12 @@
     align-items: flex-end;
     flex-shrink: 0;
   ">
-    <a href="mailto:hello@infinitethinking.studio" style="
-      display: inline-flex;
-      align-items: center;
-      gap: 14px;
-      background: var(--ink);
-      color: var(--paper);
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      text-decoration: none;
-      padding: 18px 36px;
-      transition: background 0.25s;
-      white-space: nowrap;
-    ">
+    <button type="button" id="open-contact-modal" class="contact-button">
       Start a conversation
       <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
         <path d="M0 5h14M10 1l4 4-4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
       </svg>
-    </a>
+    </button>
     <a href="#services" style="
       font-family: 'DM Mono', monospace;
       font-size: 11px;
@@ -72,9 +58,219 @@
   </div>
 </section>
 
+<dialog id="contact-modal" aria-labelledby="contact-modal-title">
+  <div class="modal-panel">
+    <button type="button" class="modal-close" data-close-modal aria-label="Close contact form">×</button>
+
+    <p class="modal-eyebrow">Start a conversation</p>
+    <h3 id="contact-modal-title">Tell us what you need.</h3>
+
+    <form id="contact-form">
+      <label>
+        Name
+        <input name="name" type="text" autocomplete="name" required />
+      </label>
+
+      <label>
+        Phone number
+        <input name="phone" type="tel" autocomplete="tel" required />
+      </label>
+
+      <label>
+        Email
+        <input name="email" type="email" autocomplete="email" required />
+      </label>
+
+      <label>
+        How can we help?
+        <textarea name="message" rows="5" required></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" data-close-modal>Cancel</button>
+        <button type="submit" class="submit-button">Send enquiry</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<script>
+  const modal = document.getElementById('contact-modal') as HTMLDialogElement | null;
+  const openButton = document.getElementById('open-contact-modal');
+  const form = document.getElementById('contact-form') as HTMLFormElement | null;
+
+  openButton?.addEventListener('click', () => modal?.showModal());
+
+  document.querySelectorAll('[data-close-modal]').forEach(button => {
+    button.addEventListener('click', () => modal?.close());
+  });
+
+  modal?.addEventListener('click', event => {
+    if (event.target === modal) modal.close();
+  });
+
+  form?.addEventListener('submit', event => {
+    event.preventDefault();
+
+    const data = new FormData(form);
+    const body = [
+      `Name: ${data.get('name')}`,
+      `Phone: ${data.get('phone')}`,
+      `Email: ${data.get('email')}`,
+      '',
+      `${data.get('message')}`,
+    ].join('\n');
+
+    window.location.href = `mailto:hello@infinitethinking.studio?subject=${encodeURIComponent('New project enquiry')}&body=${encodeURIComponent(body)}`;
+    modal?.close();
+    form.reset();
+  });
+</script>
+
 <style>
+  .contact-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--ink);
+    color: var(--paper);
+    border: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding: 18px 36px;
+    transition: background 0.25s, color 0.25s;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .contact-button:hover,
+  .submit-button:hover {
+    background: var(--accent-dark);
+  }
+
+  #contact-modal {
+    width: min(92vw, 620px);
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    padding: 0;
+    margin: auto;
+  }
+
+  #contact-modal::backdrop {
+    background: rgba(13, 13, 11, 0.55);
+    backdrop-filter: blur(6px);
+  }
+
+  .modal-panel {
+    position: relative;
+    padding: 48px;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .modal-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-dark);
+    margin-bottom: 14px;
+  }
+
+  #contact-modal-title {
+    font-size: clamp(32px, 4vw, 46px);
+    font-weight: 300;
+    line-height: 1.1;
+    margin-bottom: 30px;
+  }
+
+  #contact-form {
+    display: grid;
+    gap: 18px;
+  }
+
+  #contact-form label {
+    display: grid;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  #contact-form input,
+  #contact-form textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.42);
+    color: var(--ink);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 20px;
+    letter-spacing: 0;
+    text-transform: none;
+    padding: 13px 14px;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  #contact-form input:focus,
+  #contact-form textarea:focus {
+    border-color: var(--accent-dark);
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .secondary-button,
+  .submit-button {
+    border: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 14px 22px;
+    cursor: pointer;
+  }
+
+  .secondary-button {
+    background: transparent;
+    color: var(--muted);
+  }
+
+  .submit-button {
+    background: var(--ink);
+    color: var(--paper);
+    transition: background 0.25s;
+  }
+
   @media (max-width: 900px) {
     section { grid-template-columns: 1fr !important; padding: 80px 28px !important; }
     section > div:last-child { align-items: flex-start !important; }
+    .modal-panel { padding: 36px 24px 28px; }
+    .modal-actions { flex-direction: column-reverse; }
+    .secondary-button,
+    .submit-button { width: 100%; }
   }
 </style>

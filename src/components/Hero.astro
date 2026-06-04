@@ -29,7 +29,7 @@
       text-transform: uppercase;
       color: var(--accent-dark);
       margin-bottom: 24px;
-    ">Brand · Digital · Workflows — Geneva</p>
+    "><span class="particle-zone">Brand · Digital · Workflows — Geneva</span></p>
 
     <h1 id="hero-title" class="reveal reveal-delay-1" style="
       font-size: clamp(56px, 7vw, 96px);
@@ -37,7 +37,7 @@
       line-height: 1.0;
       letter-spacing: -0.02em;
     ">
-      Form and<br>function<br><em style="font-style:italic; color:var(--accent-dark)">are one.</em>
+      <span class="particle-zone">Form and</span><br><span class="particle-zone">function</span><br><span class="particle-zone"><em style="font-style:italic; color:var(--accent-dark)">are one.</em></span>
     </h1>
 
     <p class="hero-tagline reveal reveal-delay-2" style="
@@ -48,7 +48,7 @@
       max-width: 360px;
       margin-top: 40px;
     ">
-      We refuse to separate the two — every project we take on is designed and engineered as a single thing.
+      <span class="particle-zone">We refuse to separate the two — every project we take on is designed and engineered as a single thing.</span>
     </p>
   </div>
 
@@ -111,7 +111,7 @@
     const SPEED      = 0.00055;
     const WAVE_SCALE = 0.34;
     const WAVE_AMP   = 7;
-    const TEXT_PAD   = 16;
+    const TEXT_PAD   = 6;
 
     let W = 0, H = 0, t = 0;
     let cols = 0, rows = 0, colStep = 0, rowStep = 0;
@@ -121,7 +121,7 @@
     function getTextZones() {
       const zones: typeof textZones = [];
       const heroRect = canvas.getBoundingClientRect();
-      document.querySelectorAll('.hero-eyebrow, #hero-title, .hero-tagline').forEach(el => {
+      document.querySelectorAll('#hero .particle-zone').forEach(el => {
         const rects = el.getClientRects();
         for (let i = 0; i < rects.length; i++) {
           const r = rects[i];
@@ -144,7 +144,7 @@
     }
 
     function edgeFade(x: number, y: number) {
-      const FADE = 12;
+      const FADE = 8;
       let min = Infinity;
       for (const z of textZones) {
         const dx = Math.max(z.x - x, 0, x - (z.x + z.w));
@@ -242,6 +242,11 @@
 </script>
 
 <style>
+  .particle-zone {
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
   @media (max-width: 900px) {
     #hero > div:first-of-type { padding: 120px 28px 0 !important; }
     #hero > div:last-of-type  { padding: 0 28px 60px !important; }
