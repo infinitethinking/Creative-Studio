@@ -1,0 +1,55 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'Infinite Thinking - Creative Studio',
+  description = 'Brand, digital, and workflow design studio in Geneva.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div class="cursor-dot" aria-hidden="true"></div>
+    <slot />
+
+    <script>
+      (() => {
+        const revealEls = document.querySelectorAll('.reveal');
+
+        const observer = new IntersectionObserver(
+          entries => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.12 }
+        );
+
+        revealEls.forEach(el => observer.observe(el));
+
+        const cursor = document.querySelector('.cursor-dot');
+        if (!cursor || window.matchMedia('(pointer: coarse)').matches) return;
+
+        window.addEventListener('pointermove', event => {
+          cursor.style.transform = `translate(${event.clientX}px, ${event.clientY}px)`;
+        });
+      })();
+    </script>
+  </body>
+</html>
