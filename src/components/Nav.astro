@@ -7,46 +7,107 @@ const links = [
 ];
 ---
 
-<nav style="
-  position: fixed; top: 0; left: 0; right: 0;
-  z-index: 100;
-  padding: 28px 60px;
-  display: flex; justify-content: space-between; align-items: center;
-  mix-blend-mode: multiply;
-">
-  <a href="/" style="
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--ink);
-    text-decoration: none;
-    opacity: 0.85;
-  ">Infinite Thinking</a>
+<nav id="site-nav">
+  <a class="site-title" href="https://infinitethinking.github.io/Creative-Studio/">infinite-thinking</a>
 
-  <ul style="display: flex; gap: 40px; list-style: none;">
+  <ul>
     {links.map(l => (
       <li>
-        <a href={l.href} style="
-          font-family: 'DM Mono', monospace;
-          font-size: 11px;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          color: var(--muted);
-          text-decoration: none;
-          transition: color 0.2s;
-        "
-        onmouseover="this.style.color='var(--ink)'"
-        onmouseout="this.style.color='var(--muted)'"
-        >{l.label}</a>
+        <a class="nav-link" href={l.href}>{l.label}</a>
       </li>
     ))}
   </ul>
 </nav>
 
+<script>
+  const nav = document.getElementById('site-nav');
+  const darkSectionSelectors = ['#services', '#philosophy', 'footer'];
+
+  function updateNavTheme() {
+    if (!nav) return;
+
+    const navRect = nav.getBoundingClientRect();
+    const navMidpoint = navRect.top + navRect.height / 2;
+    const isOverDarkSection = darkSectionSelectors.some(selector => {
+      const section = document.querySelector(selector);
+      if (!section) return false;
+
+      const rect = section.getBoundingClientRect();
+      return rect.top <= navMidpoint && rect.bottom >= navMidpoint;
+    });
+
+    nav.classList.toggle('nav-on-dark', isOverDarkSection);
+  }
+
+  updateNavTheme();
+  window.addEventListener('scroll', updateNavTheme, { passive: true });
+  window.addEventListener('resize', updateNavTheme);
+</script>
+
 <style>
+  #site-nav {
+    --nav-title: var(--ink);
+    --nav-keyword: var(--muted);
+    --nav-hover: var(--ink);
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 28px 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  #site-nav.nav-on-dark {
+    --nav-title: var(--paper);
+    --nav-keyword: rgba(245, 242, 236, 0.88);
+    --nav-hover: var(--accent);
+  }
+
+  .site-title,
+  .nav-link {
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    text-decoration: none;
+    pointer-events: auto;
+    transition: color 0.2s ease, text-shadow 0.2s ease;
+  }
+
+  .site-title {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--nav-title);
+  }
+
+  .nav-link {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    color: var(--nav-keyword);
+  }
+
+  .site-title:hover,
+  .nav-link:hover {
+    color: var(--nav-hover);
+  }
+
+  #site-nav.nav-on-dark .site-title,
+  #site-nav.nav-on-dark .nav-link {
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+  }
+
+  ul {
+    display: flex;
+    gap: 40px;
+    list-style: none;
+  }
+
   @media (max-width: 900px) {
-    nav { padding: 24px 28px; }
-    nav ul { display: none; }
+    #site-nav { padding: 24px 28px; }
+    #site-nav ul { display: none; }
   }
 </style>
