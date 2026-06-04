@@ -1,0 +1,80 @@
+---
+---
+
+<section id="contact" style="
+  background: var(--paper-warm);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 100px 60px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 80px;
+  align-items: center;
+">
+  <div>
+    <h2 class="reveal" style="
+      font-size: clamp(36px, 4vw, 64px);
+      font-weight: 300;
+      line-height: 1.15;
+    ">
+      Ready to make your<br>business <em style="font-style:italic; color:var(--accent-dark)">unforgettable?</em>
+    </h2>
+    <p class="reveal reveal-delay-1" style="
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--muted);
+      margin-top: 20px;
+      max-width: 500px;
+    ">
+      A 30-minute conversation is enough to understand your situation and tell you if we're the right fit.
+    </p>
+  </div>
+
+  <div class="reveal" style="
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-end;
+    flex-shrink: 0;
+  ">
+    <a href="mailto:hello@infinitethinking.studio" style="
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 18px 36px;
+      transition: background 0.25s;
+      white-space: nowrap;
+    ">
+      Start a conversation
+      <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
+        <path d="M0 5h14M10 1l4 4-4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </a>
+    <a href="#services" style="
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      padding-bottom: 2px;
+      transition: color 0.2s, border-color 0.2s;
+      white-space: nowrap;
+    ">View case studies →</a>
+  </div>
+</section>
+
+<style>
+  @media (max-width: 900px) {
+    section { grid-template-columns: 1fr !important; padding: 80px 28px !important; }
+    section > div:last-child { align-items: flex-start !important; }
+  }
+</style>

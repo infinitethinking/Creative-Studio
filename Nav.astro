@@ -1,0 +1,33 @@
+---
+const items = [
+  'Brand Identity', 'Web Design', 'Workflow Automation',
+  'Client Portals', 'Visual Systems', 'UX Strategy',
+  'Back-Office Design', 'Geneva',
+];
+---
+
+<div style="
+  background: var(--ink);
+  padding: 16px 0;
+  overflow: hidden;
+">
+  <div style="
+    display: flex;
+    white-space: nowrap;
+    animation: marquee 18s linear infinite;
+  ">
+    {[...items, ...items].map((item, i) => (
+      <>
+        <span style="
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          letter-spacing: 0.25em;
+          text-transform: uppercase;
+          color: rgba(245,242,236,0.5);
+          padding: 0 40px;
+        ">{item}</span>
+        <span style="color: var(--accent); padding: 0 4px;">✦</span>
+      </>
+    ))}
+  </div>
+</div>

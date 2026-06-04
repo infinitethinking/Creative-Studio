@@ -1,0 +1,52 @@
+---
+const links = [
+  { href: '#services',    label: 'Services'  },
+  { href: '#philosophy',  label: 'Approach'  },
+  { href: '#process',     label: 'Process'   },
+  { href: '#contact',     label: 'Contact'   },
+];
+---
+
+<nav style="
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 28px 60px;
+  display: flex; justify-content: space-between; align-items: center;
+  mix-blend-mode: multiply;
+">
+  <a href="/" style="
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink);
+    text-decoration: none;
+    opacity: 0.85;
+  ">Infinite Thinking</a>
+
+  <ul style="display: flex; gap: 40px; list-style: none;">
+    {links.map(l => (
+      <li>
+        <a href={l.href} style="
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--muted);
+          text-decoration: none;
+          transition: color 0.2s;
+        "
+        onmouseover="this.style.color='var(--ink)'"
+        onmouseout="this.style.color='var(--muted)'"
+        >{l.label}</a>
+      </li>
+    ))}
+  </ul>
+</nav>
+
+<style>
+  @media (max-width: 900px) {
+    nav { padding: 24px 28px; }
+    nav ul { display: none; }
+  }
+</style>

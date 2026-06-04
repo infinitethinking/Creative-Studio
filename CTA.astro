@@ -1,0 +1,110 @@
+---
+---
+
+<footer style="
+  background: var(--ink);
+  padding: 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 60px;
+  align-items: start;
+">
+  <div>
+    <a href="/" style="
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--paper);
+      text-decoration: none;
+      display: block;
+      margin-bottom: 16px;
+    ">Infinite Thinking</a>
+    <p style="
+      font-size: 15px;
+      font-weight: 300;
+      font-style: italic;
+      color: rgba(245,242,236,0.4);
+      line-height: 1.6;
+    ">A creative studio for brands<br>that earn loyalty.</p>
+  </div>
+
+  <div>
+    <p style="
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(245,242,236,0.3);
+      margin-bottom: 24px;
+    ">Navigation</p>
+    <ul style="list-style:none;">
+      {['#services', '#philosophy', '#process', '#contact'].map((href, i) => (
+        <li style="margin-bottom:14px;">
+          <a href={href} style="
+            font-size: 15px;
+            font-weight: 300;
+            color: rgba(245,242,236,0.6);
+            text-decoration: none;
+            transition: color 0.2s;
+          "
+          onmouseover="this.style.color='rgba(245,242,236,1)'"
+          onmouseout="this.style.color='rgba(245,242,236,0.6)'"
+          >{['Services', 'Approach', 'Process', 'Contact'][i]}</a>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <div>
+    <p style="
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(245,242,236,0.3);
+      margin-bottom: 24px;
+    ">Find us</p>
+    <address style="
+      font-size: 15px;
+      font-weight: 300;
+      line-height: 2;
+      color: rgba(245,242,236,0.5);
+      font-style: normal;
+    ">
+      <strong style="display:block; color:rgba(245,242,236,0.85); font-weight:400; margin-bottom:4px;">
+        Geneva, Switzerland
+      </strong>
+      hello@infinitethinking.studio<br>
+      +41 22 000 00 00
+    </address>
+  </div>
+</footer>
+
+<div style="
+  background: #090907;
+  padding: 22px 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+">
+  <span style="
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: rgba(245,242,236,0.25);
+  ">© 2025 Infinite Thinking Studio — Geneva</span>
+  <span style="
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: rgba(245,242,236,0.25);
+  ">Form and function are one.</span>
+</div>
+
+<style>
+  @media (max-width: 900px) {
+    footer { grid-template-columns: 1fr !important; padding: 48px 28px !important; }
+    footer + div { padding: 20px 28px !important; flex-direction: column !important; gap: 10px !important; text-align: center !important; }
+  }
+</style>

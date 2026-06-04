@@ -1,0 +1,112 @@
+---
+const services = [
+  {
+    num: '01',
+    title: 'Design',
+    titleEm: 'for credibility',
+    desc: 'Your brand is the first thing a client judges. We craft visual identities, websites, and materials that communicate trust, sophistication, and authority — before a word is read.',
+    tags: ['Brand Identity', 'Web Design', 'Visual Systems', 'Typography'],
+  },
+  {
+    num: '02',
+    title: 'Efficiency',
+    titleEm: 'by design',
+    desc: 'Booking, registration, file deposit, onboarding — we design the back-office workflows your clients actually use. Fewer emails, fewer errors, more time for the work that matters.',
+    tags: ['Client Portals', 'Booking Systems', 'File Deposit', 'Automation'],
+  },
+  {
+    num: '03',
+    title: 'Ease',
+    titleEm: 'that retains',
+    desc: 'Clients return because nothing got in the way. We design experiences so intuitive they feel invisible — from first click to final delivery. Frictionless is the feature.',
+    tags: ['UX Strategy', 'User Testing', 'Process Design', 'Retention'],
+  },
+];
+---
+
+<section id="services" style="padding: 120px 60px;">
+  <p class="section-label reveal">What we do</p>
+
+  <div style="
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--line);
+  ">
+    {services.map((s, i) => (
+      <div
+        class={`service-card reveal${i > 0 ? ` reveal-delay-${i}` : ''}`}
+        style="
+          padding: 60px 48px;
+          border-right: 1px solid var(--line);
+          position: relative;
+          overflow: hidden;
+          transition: background 0.4s;
+        "
+      >
+        <p style="
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          letter-spacing: 0.2em;
+          color: var(--accent);
+          margin-bottom: 40px;
+        ">{s.num}</p>
+
+        <h2 style="
+          font-size: 36px;
+          font-weight: 300;
+          line-height: 1.1;
+          margin-bottom: 20px;
+        ">
+          <em style="font-style:italic">{s.title}</em> {s.titleEm}
+        </h2>
+
+        <p style="
+          font-size: 16px;
+          font-weight: 300;
+          line-height: 1.8;
+          color: var(--muted);
+          margin-bottom: 40px;
+        ">{s.desc}</p>
+
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          {s.tags.map(tag => (
+            <span style="
+              font-family: 'DM Mono', monospace;
+              font-size: 10px;
+              letter-spacing: 0.15em;
+              text-transform: uppercase;
+              color: var(--muted);
+              border: 1px solid var(--line);
+              padding: 5px 12px;
+            ">{tag}</span>
+          ))}
+        </div>
+
+        <!-- Bottom accent line on hover -->
+        <div class="card-accent"></div>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  .service-card:last-child { border-right: none; }
+
+  .card-accent {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .service-card:hover .card-accent { transform: scaleX(1); }
+  .service-card:hover { background: var(--paper-warm); }
+
+  @media (max-width: 900px) {
+    section { padding: 80px 28px !important; }
+    div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+    .service-card { border-right: none !important; border-bottom: 1px solid var(--line); }
+  }
+</style>

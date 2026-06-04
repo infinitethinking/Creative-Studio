@@ -1,0 +1,249 @@
+---
+// Hero — full-width wave dot field, text exclusion zones, cursor repulsion
+---
+
+<section id="hero" style="
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+">
+  <canvas id="particle-canvas" style="
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+  "></canvas>
+
+  <!-- Text content -->
+  <div style="
+    position: relative; z-index: 2;
+    padding: 160px 60px 0;
+    max-width: 680px;
+  ">
+    <p class="hero-eyebrow reveal" style="
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+      margin-bottom: 24px;
+    ">Brand · Digital · Workflows — Geneva</p>
+
+    <h1 id="hero-title" class="reveal reveal-delay-1" style="
+      font-size: clamp(56px, 7vw, 96px);
+      font-weight: 300;
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+    ">
+      Form and<br>function<br><em style="font-style:italic; color:var(--accent-dark)">are one.</em>
+    </h1>
+
+    <p class="hero-tagline reveal reveal-delay-2" style="
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1.7;
+      color: var(--muted);
+      max-width: 360px;
+      margin-top: 40px;
+    ">
+      We refuse to separate the two — every project we take on is designed and engineered as a single thing.
+    </p>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="reveal reveal-delay-3" style="
+    position: relative; z-index: 2;
+    padding: 0 60px 80px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  ">
+    <div style="
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    ">
+      Based in
+      <span style="display:block; margin-top:6px; color:var(--ink)">Geneva, Switzerland</span>
+    </div>
+
+    <a href="#services" id="hero-cta" style="
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink);
+      text-decoration: none;
+      border-bottom: 1px solid var(--ink);
+      padding-bottom: 4px;
+      transition: color 0.2s, border-color 0.2s;
+    ">
+      Explore our work
+      <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
+        <path d="M0 5h16M12 1l4 4-4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </a>
+  </div>
+</section>
+
+<script>
+  // Trigger hero reveals immediately on load
+  setTimeout(() => {
+    document.querySelectorAll('#hero .reveal').forEach(el => el.classList.add('visible'));
+  }, 200);
+
+  // ── Wave dot grid with text exclusion + cursor repulsion ────────────
+  (function () {
+    const canvas = document.getElementById('particle-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+
+    const DOT        = 1.6;
+    const REPEL_R    = 90;
+    const REPEL_STR  = 38;
+    const SPEED      = 0.00055;
+    const WAVE_SCALE = 0.34;
+    const WAVE_AMP   = 7;
+    const TEXT_PAD   = 16;
+
+    let W = 0, H = 0, t = 0;
+    let cols = 0, rows = 0, colStep = 0, rowStep = 0;
+    let mx = -999, my = -999, smx = -999, smy = -999;
+    let textZones: { x: number; y: number; w: number; h: number }[] = [];
+
+    function getTextZones() {
+      const zones: typeof textZones = [];
+      const heroRect = canvas.getBoundingClientRect();
+      document.querySelectorAll('.hero-eyebrow, #hero-title, .hero-tagline').forEach(el => {
+        const rects = el.getClientRects();
+        for (let i = 0; i < rects.length; i++) {
+          const r = rects[i];
+          if (r.width < 2) continue;
+          zones.push({
+            x: r.left - heroRect.left - TEXT_PAD,
+            y: r.top  - heroRect.top  - TEXT_PAD,
+            w: r.width  + TEXT_PAD * 2,
+            h: r.height + TEXT_PAD * 2,
+          });
+        }
+      });
+      return zones;
+    }
+
+    function inZone(x: number, y: number) {
+      for (const z of textZones)
+        if (x > z.x && x < z.x + z.w && y > z.y && y < z.y + z.h) return true;
+      return false;
+    }
+
+    function edgeFade(x: number, y: number) {
+      const FADE = 12;
+      let min = Infinity;
+      for (const z of textZones) {
+        const dx = Math.max(z.x - x, 0, x - (z.x + z.w));
+        const dy = Math.max(z.y - y, 0, y - (z.y + z.h));
+        const d  = Math.sqrt(dx * dx + dy * dy);
+        if (d < min) min = d;
+      }
+      return Math.min(min / FADE, 1);
+    }
+
+    function resize() {
+      W = canvas.offsetWidth;
+      H = canvas.offsetHeight;
+      canvas.width  = W * devicePixelRatio;
+      canvas.height = H * devicePixelRatio;
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+      cols    = Math.floor(W / 34);
+      rows    = Math.floor(H / 34);
+      colStep = W / (cols + 1);
+      rowStep = H / (rows + 1);
+      textZones = getTextZones();
+    }
+
+    function frame() {
+      t += SPEED;
+      smx += (mx - smx) * 0.1;
+      smy += (my - smy) * 0.1;
+      ctx.clearRect(0, 0, W, H);
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const bx = (col + 1) * colStep;
+          const by = (row + 1) * rowStep;
+          if (inZone(bx, by)) continue;
+
+          const w1    = Math.sin(col * WAVE_SCALE + t * 55 * 0.7);
+          const w2    = Math.sin((col * 0.6 + row * 0.5) * WAVE_SCALE + t * 55 * 0.45);
+          const waveY = (w1 * 0.65 + w2 * 0.35) * WAVE_AMP;
+          const waveX = Math.sin(row * WAVE_SCALE * 0.8 + t * 55 * 0.35) * WAVE_AMP * 0.3;
+
+          let x = bx + waveX;
+          let y = by + waveY;
+
+          const ddx  = x - smx;
+          const ddy  = y - smy;
+          const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+          if (dist < REPEL_R && dist > 0.5) {
+            const push = Math.pow(1 - dist / REPEL_R, 2) * REPEL_STR;
+            x += (ddx / dist) * push;
+            y += (ddy / dist) * push;
+          }
+          if (inZone(x, y)) continue;
+
+          const mag       = (w1 * 0.6 + w2 * 0.4 + 1) / 2;
+          const proximity = dist < REPEL_R ? (1 - dist / REPEL_R) * 0.4 : 0;
+          const fade      = edgeFade(x, y);
+          const alpha     = (0.1 + mag * 0.38 + proximity * 0.25) * fade;
+          const r         = DOT * (0.8 + mag * 0.35);
+          const gm        = Math.min(Math.max(0, mag - 0.55) / 0.45 + proximity * 0.6, 1);
+
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(
+            ${Math.round(13  + (200 - 13)  * gm)},
+            ${Math.round(13  + (169 - 13)  * gm)},
+            ${Math.round(11  + (110 - 11)  * gm)},
+            ${alpha})`;
+          ctx.fill();
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function init() {
+      resize();
+      setTimeout(() => { textZones = getTextZones(); }, 450);
+      frame();
+    }
+
+    window.addEventListener('resize', () => {
+      resize();
+      setTimeout(() => { textZones = getTextZones(); }, 100);
+    });
+
+    const hero = document.getElementById('hero')!;
+    hero.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mx = e.clientX - rect.left;
+      my = e.clientY - rect.top;
+    });
+    hero.addEventListener('mouseleave', () => { mx = -999; my = -999; });
+
+    document.fonts ? document.fonts.ready.then(init) : init();
+  })();
+</script>
+
+<style>
+  @media (max-width: 900px) {
+    #hero > div:first-of-type { padding: 120px 28px 0 !important; }
+    #hero > div:last-of-type  { padding: 0 28px 60px !important; }
+  }
+</style>

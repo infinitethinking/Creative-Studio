@@ -1,0 +1,76 @@
+---
+const steps = [
+  { num: '01', title: 'Discover', desc: 'We audit your current brand, workflows, and client feedback to identify where trust is lost and friction hides.' },
+  { num: '02', title: 'Define',   desc: 'Together we set the north star: what should clients feel, what must become effortless, and what needs to look world-class.' },
+  { num: '03', title: 'Design',   desc: 'Brand, interface, and process are designed as one system. Visual language, user flows, and back-office logic in lockstep.' },
+  { num: '04', title: 'Deploy',   desc: 'We ship, measure, and iterate. Then we hand over systems your team can own — no dependency on us required.' },
+];
+---
+
+<section id="process" style="padding: 120px 60px;">
+  <div style="
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: end;
+    margin-bottom: 80px;
+  ">
+    <h2 class="reveal" style="
+      font-size: clamp(40px, 4vw, 60px);
+      font-weight: 300;
+      line-height: 1.15;
+    ">
+      How we<br><em style="font-style:italic; color:var(--accent-dark)">work with you</em>
+    </h2>
+    <p class="reveal reveal-delay-1" style="
+      font-size: 17px;
+      font-weight: 300;
+      line-height: 1.8;
+      color: var(--muted);
+    ">
+      Every engagement starts with listening. We map your client's journey end-to-end before touching a pixel, so every decision is grounded in how people actually behave.
+    </p>
+  </div>
+
+  <div style="
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+  ">
+    {steps.map((s, i) => (
+      <div class={`reveal${i > 0 ? ` reveal-delay-${i}` : ''}`} style="
+        padding: 48px 36px;
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      ">
+        <p style="
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          letter-spacing: 0.2em;
+          color: var(--accent);
+          margin-bottom: 28px;
+        ">{s.num}</p>
+        <h3 style="
+          font-size: 22px;
+          font-weight: 300;
+          margin-bottom: 16px;
+        "><em style="font-style:italic">{s.title}</em></h3>
+        <p style="
+          font-size: 15px;
+          font-weight: 300;
+          line-height: 1.75;
+          color: var(--muted);
+        ">{s.desc}</p>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  @media (max-width: 900px) {
+    section { padding: 80px 28px !important; }
+    section > div:first-child { grid-template-columns: 1fr !important; gap: 24px !important; }
+    section > div:last-child  { grid-template-columns: 1fr 1fr !important; }
+  }
+</style>

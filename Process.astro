@@ -1,0 +1,90 @@
+---
+const stats = [
+  { num: '12+',  label: 'Years in Geneva'     },
+  { num: '94%',  label: 'Client retention'    },
+  { num: '3×',   label: 'Avg. booking uplift' },
+  { num: '∞',    label: 'Ways to think'       },
+];
+---
+
+<section id="philosophy" style="
+  background: var(--ink);
+  padding: 140px 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 100px;
+  align-items: center;
+">
+  <!-- Left: quote -->
+  <div>
+    <p class="reveal" style="
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 48px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    ">
+      Our philosophy
+      <span style="flex:1; max-width:60px; height:1px; background:var(--accent-dark); display:block;"></span>
+    </p>
+
+    <blockquote class="reveal reveal-delay-1" style="
+      font-size: clamp(32px, 3.5vw, 52px);
+      font-weight: 300;
+      line-height: 1.25;
+      color: var(--paper);
+      letter-spacing: -0.01em;
+    ">
+      "Form and function<br><em style="font-style:italic; color:var(--accent)">are one.</em>"
+    </blockquote>
+  </div>
+
+  <!-- Right: body + stats -->
+  <div>
+    <p class="reveal" style="
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1.85;
+      color: rgba(245,242,236,0.6);
+      margin-bottom: 56px;
+    ">
+      At Infinite Thinking, we believe design and operations are the same discipline. A beautiful website that frustrates users fails. A seamless back-office that looks amateur loses deals. We refuse to separate form from function — and our clients grow because of it.
+    </p>
+
+    <div class="reveal reveal-delay-1" style="
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: rgba(245,242,236,0.08);
+    ">
+      {stats.map(s => (
+        <div style="padding: 32px 28px; background: var(--ink);">
+          <div style="
+            font-size: 48px;
+            font-weight: 300;
+            line-height: 1;
+            color: var(--paper);
+            margin-bottom: 8px;
+          ">{s.num}</div>
+          <div style="
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: rgba(245,242,236,0.4);
+          ">{s.label}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  @media (max-width: 900px) {
+    section { grid-template-columns: 1fr !important; padding: 80px 28px !important; gap: 60px !important; }
+  }
+</style>
