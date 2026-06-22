@@ -1,0 +1,50 @@
+---
+---
+
+<aside class="detail-panel" aria-live="polite">
+  <div class="detail-empty" data-detail-empty>
+    <p class="dashboard-eyebrow">Détail</p>
+    <h2>Sélectionnez un rendez-vous</h2>
+    <p>Touchez un bloc dans le planning pour afficher les informations du client et les actions rapides.</p>
+  </div>
+
+  <div class="detail-content" data-detail-content hidden>
+    <p class="dashboard-eyebrow" data-detail-status></p>
+    <h2 data-detail-client></h2>
+
+    <dl class="detail-list">
+      <div>
+        <dt>Service</dt>
+        <dd data-detail-service></dd>
+      </div>
+      <div>
+        <dt>Durée</dt>
+        <dd data-detail-duration></dd>
+      </div>
+      <div>
+        <dt>Prix</dt>
+        <dd data-detail-price></dd>
+      </div>
+      <div>
+        <dt>Praticien</dt>
+        <dd data-detail-practitioner></dd>
+      </div>
+      <div>
+        <dt>Téléphone</dt>
+        <dd data-detail-phone></dd>
+      </div>
+    </dl>
+
+    <label class="notes-field">
+      Notes
+      <textarea rows="6" data-detail-notes></textarea>
+    </label>
+
+    <div class="detail-actions">
+      <button type="button" data-status-action="confirmed">Check in</button>
+      <button type="button" data-status-action="completed">Compléter</button>
+      <button type="button" data-status-action="no_show">No show</button>
+      <button type="button" data-status-action="cancelled">Annuler</button>
+    </div>
+  </div>
+</aside>
