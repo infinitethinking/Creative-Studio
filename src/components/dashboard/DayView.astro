@@ -1,0 +1,49 @@
+---
+import BookingBlock from './BookingBlock.astro';
+import BookingDetail from './BookingDetail.astro';
+---
+
+<section class="dashboard-shell" aria-label="Tableau de bord praticien">
+  <header class="dashboard-topbar">
+    <div>
+      <p class="dashboard-eyebrow" data-practice-label>Cabinet</p>
+      <h1>Vue du jour</h1>
+    </div>
+
+    <div class="date-controls" aria-label="Navigation de date">
+      <button type="button" data-prev-day aria-label="Jour précédent">←</button>
+      <strong data-current-date></strong>
+      <button type="button" data-next-day aria-label="Jour suivant">→</button>
+      <button type="button" data-today>Aujourd'hui</button>
+    </div>
+  </header>
+
+  <div class="dashboard-layout">
+    <section class="timeline-panel" aria-label="Planning du jour">
+      <div class="staff-header" data-staff-header></div>
+      <div class="timeline-scroll" data-timeline-scroll>
+        <div class="timeline-grid" data-timeline-grid></div>
+      </div>
+    </section>
+
+    <BookingDetail />
+  </div>
+
+  <footer class="dashboard-bottombar">
+    <button type="button" data-open-new-booking data-source="walk-in">+ Walk-in</button>
+    <button type="button" data-open-new-booking data-source="voucher">Bon cadeau</button>
+    <button type="button" data-day-summary>Résumé du jour</button>
+  </footer>
+
+  <dialog class="new-booking-modal" data-new-booking-modal aria-labelledby="new-booking-title">
+    <div>
+      <button class="modal-close" type="button" data-close-new-booking aria-label="Fermer">×</button>
+      <p class="dashboard-eyebrow">Démo locale</p>
+      <h2 id="new-booking-title">Nouveau rendez-vous</h2>
+      <p data-new-booking-copy></p>
+      <button type="button" data-close-new-booking>Compris</button>
+    </div>
+  </dialog>
+
+  <BookingBlock />
+</section>

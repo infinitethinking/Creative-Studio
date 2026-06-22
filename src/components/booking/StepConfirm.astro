@@ -1,0 +1,54 @@
+---
+---
+
+<section class="booking-step" data-step-panel="3" aria-labelledby="confirm-step-title" hidden>
+  <button class="back-button" type="button" data-back-to-datetime>← Retour aux horaires</button>
+
+  <div data-confirm-form>
+    <p class="booking-eyebrow">Étape 3</p>
+    <h2 id="confirm-step-title">Confirmez votre rendez-vous</h2>
+
+    <div class="summary-card" data-summary></div>
+
+    <div class="field-grid">
+      <label>
+        Prénom et nom
+        <input type="text" name="client_name" data-client-name autocomplete="name" placeholder="Votre nom" />
+      </label>
+
+      <label>
+        Téléphone
+        <input type="tel" name="client_phone" data-client-phone autocomplete="tel" placeholder="+41 ..." />
+      </label>
+
+      <label>
+        Email optionnel
+        <input type="email" name="client_email" data-client-email autocomplete="email" placeholder="vous@example.ch" />
+      </label>
+    </div>
+
+    <fieldset class="preference-toggle">
+      <legend>Préférence de rappel</legend>
+      <label>
+        <input type="radio" name="notification_preference" value="sms" checked data-notification-preference />
+        SMS
+      </label>
+      <label>
+        <input type="radio" name="notification_preference" value="email" data-notification-preference />
+        Email
+      </label>
+    </fieldset>
+
+    <button class="primary-action" type="button" data-confirm-booking>Confirmer</button>
+  </div>
+
+  <div class="confirmation-screen" data-confirmation-screen hidden>
+    <p class="booking-eyebrow">Rendez-vous confirmé</p>
+    <h2>Merci, votre créneau est réservé.</h2>
+
+    <div class="summary-card" data-confirmation-summary></div>
+
+    <button class="primary-action" type="button" data-download-ics>Ajouter au calendrier</button>
+    <a class="cancel-link" href="#" data-cancel-demo>Annuler ce RDV</a>
+  </div>
+</section>

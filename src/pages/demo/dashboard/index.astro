@@ -1,0 +1,771 @@
+---
+import Base from '../../../layouts/Base.astro';
+import DayView from '../../../components/dashboard/DayView.astro';
+import { demoData, demoWeek } from '../../../data/demo';
+
+const dashboardDemoData = {
+  demoWeek,
+  ...demoData,
+};
+---
+
+<Base
+  title="Démo tableau de bord - Infinite Thinking"
+  description="Démo tablette de la vue du jour praticien Infinite Thinking."
+>
+  <main class="dashboard-page">
+    <DayView />
+  </main>
+
+  <script id="dashboard-demo-data" type="application/json" set:html={JSON.stringify(dashboardDemoData)}></script>
+
+  <script>
+    const dataElement = document.getElementById('dashboard-demo-data');
+    const demo = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
+
+    const DEFAULT_PRACTICE_ID = '00000000-0000-4000-8000-000000000101';
+    const DAY_START_MINUTES = 8 * 60;
+    const DAY_END_MINUTES = 19 * 60;
+    const SLOT_MINUTES = 30;
+    const ROW_HEIGHT = 56;
+
+    const statusLabels = {
+      pending: 'En attente',
+      confirmed: 'Confirmé',
+      completed: 'Complété',
+      cancelled: 'Annulé',
+      no_show: 'No show',
+    };
+
+    const statusClass = {
+      pending: 'status-pending',
+      confirmed: 'status-confirmed',
+      completed: 'status-completed',
+      cancelled: 'status-cancelled',
+      no_show: 'status-no-show',
+    };
+
+    const dayLabels = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const monthLabels = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+    const $ = selector => document.querySelector(selector);
+    const $$ = selector => Array.from(document.querySelectorAll(selector));
+    const resolvePracticeId = () => {
+      const queryPractice = new URLSearchParams(window.location.search).get('practice');
+      if (!queryPractice) return DEFAULT_PRACTICE_ID;
+
+      const normalized = queryPractice.toLowerCase();
+      const matchedPractice = demo.practices.find(item => {
+        const haystack = `${item.id} ${item.name} ${item.city}`.toLowerCase();
+        return haystack.includes(normalized);
+      });
+
+      return matchedPractice?.id || DEFAULT_PRACTICE_ID;
+    };
+    const PRACTICE_ID = resolvePracticeId();
+    const practice = demo.practices.find(item => item.id === PRACTICE_ID);
+    const staff = demo.staff.filter(member => member.practice_id === PRACTICE_ID && member.active);
+    const services = demo.services.filter(service => service.practice_id === PRACTICE_ID);
+    const clients = demo.clients.filter(client => client.practice_id === PRACTICE_ID);
+    const practiceBookings = demo.bookings
+      .filter(booking => booking.practice_id === PRACTICE_ID)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+    const state = {
+      currentDate: practiceBookings[0]?.start_time.slice(0, 10) || demo.demoWeek.start_date,
+      selectedBookingId: '',
+      bookings: practiceBookings.map(booking => ({ ...booking })),
+    };
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function getDatePart(timestamp) {
+      return timestamp.slice(0, 10);
+    }
+
+    function getTimePart(timestamp) {
+      return timestamp.slice(11, 16);
+    }
+
+    function minutesFromTime(time) {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    }
+
+    function formatPrice(amount) {
+      return `CHF ${Number(amount).toLocaleString('fr-CH')}`;
+    }
+
+    function formatDate(dateString) {
+      const date = new Date(`${dateString}T12:00:00`);
+      return `${dayLabels[date.getDay()]} ${date.getDate()} ${monthLabels[date.getMonth()]}`;
+    }
+
+    function shiftDate(dateString, days) {
+      const date = new Date(`${dateString}T12:00:00`);
+      date.setDate(date.getDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function getBooking(id) {
+      return state.bookings.find(booking => booking.id === id);
+    }
+
+    function getService(id) {
+      return services.find(service => service.id === id);
+    }
+
+    function getClient(id) {
+      return clients.find(client => client.id === id);
+    }
+
+    function getStaff(id) {
+      return staff.find(member => member.id === id);
+    }
+
+    function getBookingsForDate(dateString) {
+      return state.bookings
+        .filter(booking => getDatePart(booking.start_time) === dateString)
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+
+    function renderTopBar() {
+      $('[data-practice-label]').textContent = practice ? `${practice.name} · ${practice.city}` : 'Cabinet';
+      $('[data-current-date]').textContent = formatDate(state.currentDate);
+    }
+
+    function renderStaffHeader() {
+      const header = $('[data-staff-header]');
+      header.style.setProperty('--staff-count', staff.length);
+      header.innerHTML = [
+        '<span class="time-gutter">08:00-19:00</span>',
+        ...staff.map(member => `
+          <div class="staff-heading">
+            <strong>${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</strong>
+            <span>${member.buffer_override_minutes ?? practice.default_buffer_minutes} min de pause</span>
+          </div>
+        `),
+      ].join('');
+    }
+
+    function buildTimeRail() {
+      const labels = [];
+      for (let minutes = DAY_START_MINUTES; minutes <= DAY_END_MINUTES; minutes += SLOT_MINUTES) {
+        const top = ((minutes - DAY_START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+        const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+        const mins = String(minutes % 60).padStart(2, '0');
+        labels.push(`<span style="top:${top}px">${hours}:${mins}</span>`);
+      }
+      return `<div class="time-rail">${labels.join('')}</div>`;
+    }
+
+    function makeEmptySlotButton(member, slotStartMinutes) {
+      const hours = String(Math.floor(slotStartMinutes / 60)).padStart(2, '0');
+      const mins = String(slotStartMinutes % 60).padStart(2, '0');
+      const top = ((slotStartMinutes - DAY_START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+
+      return `
+        <button
+          class="empty-slot"
+          type="button"
+          style="top:${top}px;height:${ROW_HEIGHT}px"
+          data-empty-staff="${member.id}"
+          data-empty-time="${hours}:${mins}"
+          aria-label="Créer un rendez-vous à ${hours}:${mins} avec ${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}"
+        ></button>
+      `;
+    }
+
+    function fillBookingBlock(block, booking) {
+      const service = getService(booking.service_id);
+      const client = getClient(booking.client_id);
+      block.dataset.bookingId = booking.id;
+      block.className = `booking-block ${statusClass[booking.status] || 'status-pending'}${booking.id === state.selectedBookingId ? ' is-selected' : ''}`;
+      block.querySelector('[data-booking-time]').textContent = `${getTimePart(booking.start_time)}-${getTimePart(booking.end_time)}`;
+      block.querySelector('[data-booking-client]').textContent = client ? `${client.first_name} ${client.last_name}` : 'Client';
+      block.querySelector('[data-booking-service]').textContent = service?.name || 'Service';
+      block.addEventListener('click', event => {
+        event.stopPropagation();
+        state.selectedBookingId = booking.id;
+        renderTimeline();
+        renderDetail();
+      });
+    }
+
+    function makeBookingBlock(booking) {
+      const template = document.getElementById('booking-block-template');
+      const block = template.content.firstElementChild.cloneNode(true);
+      const start = minutesFromTime(getTimePart(booking.start_time));
+      const end = minutesFromTime(getTimePart(booking.end_time));
+      const top = ((start - DAY_START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+      const height = Math.max(((end - start) / SLOT_MINUTES) * ROW_HEIGHT - 8, 42);
+
+      block.style.top = `${top}px`;
+      block.style.height = `${height}px`;
+      fillBookingBlock(block, booking);
+
+      return block.outerHTML;
+    }
+
+    function renderTimeline() {
+      const grid = $('[data-timeline-grid]');
+      const dayBookings = getBookingsForDate(state.currentDate);
+      grid.style.setProperty('--staff-count', staff.length);
+
+      const lanes = staff.map(member => {
+        const emptySlots = [];
+        for (let minutes = DAY_START_MINUTES; minutes < DAY_END_MINUTES; minutes += SLOT_MINUTES) {
+          emptySlots.push(makeEmptySlotButton(member, minutes));
+        }
+
+        const bookingBlocks = dayBookings
+          .filter(booking => booking.staff_id === member.id)
+          .map(makeBookingBlock);
+
+        return `
+          <div class="staff-lane" data-lane-staff="${member.id}">
+            ${emptySlots.join('')}
+            ${bookingBlocks.join('')}
+          </div>
+        `;
+      });
+
+      grid.innerHTML = `${buildTimeRail()}<div class="lanes">${lanes.join('')}</div>`;
+
+      grid.querySelectorAll('.booking-block').forEach(block => {
+        block.addEventListener('click', () => {
+          state.selectedBookingId = block.dataset.bookingId;
+          renderTimeline();
+          renderDetail();
+        });
+      });
+
+      grid.querySelectorAll('.empty-slot').forEach(slot => {
+        slot.addEventListener('click', () => {
+          const member = getStaff(slot.dataset.emptyStaff);
+          openNewBookingModal(
+            `Créneau libre le ${formatDate(state.currentDate)} à ${slot.dataset.emptyTime} avec ${member.first_name} ${member.last_name}.`
+          );
+        });
+      });
+    }
+
+    function renderDetail() {
+      const empty = $('[data-detail-empty]');
+      const content = $('[data-detail-content]');
+      const booking = getBooking(state.selectedBookingId);
+
+      if (!booking) {
+        empty.hidden = false;
+        content.hidden = true;
+        return;
+      }
+
+      const client = getClient(booking.client_id);
+      const service = getService(booking.service_id);
+      const member = getStaff(booking.staff_id);
+
+      empty.hidden = true;
+      content.hidden = false;
+      $('[data-detail-status]').textContent = statusLabels[booking.status] || 'En attente';
+      $('[data-detail-status]').className = `dashboard-eyebrow ${statusClass[booking.status] || 'status-pending'}`;
+      $('[data-detail-client]').textContent = client ? `${client.first_name} ${client.last_name}` : 'Client';
+      $('[data-detail-service]').textContent = service?.name || 'Service';
+      $('[data-detail-duration]').textContent = `${service?.duration_minutes || 0} min`;
+      $('[data-detail-price]').textContent = formatPrice(booking.amount);
+      $('[data-detail-practitioner]').textContent = member ? `${member.first_name} ${member.last_name}` : 'Praticien';
+      $('[data-detail-phone]').textContent = client?.phone || '-';
+      $('[data-detail-notes]').value = booking.notes || '';
+    }
+
+    function updateSelectedStatus(status) {
+      const booking = getBooking(state.selectedBookingId);
+      if (!booking) return;
+
+      booking.status = status;
+      renderTimeline();
+      renderDetail();
+    }
+
+    function openNewBookingModal(copy) {
+      $('[data-new-booking-copy]').textContent = copy;
+      $('[data-new-booking-modal]').showModal();
+    }
+
+    function renderDaySummary() {
+      const bookings = getBookingsForDate(state.currentDate);
+      const completed = bookings.filter(booking => booking.status === 'completed').length;
+      const confirmed = bookings.filter(booking => booking.status === 'confirmed').length;
+      const revenue = bookings
+        .filter(booking => booking.status !== 'cancelled' && booking.status !== 'no_show')
+        .reduce((sum, booking) => sum + Number(booking.amount), 0);
+
+      openNewBookingModal(
+        `${bookings.length} rendez-vous ce jour, ${completed} complété(s), ${confirmed} confirmé(s). Chiffre prévu: ${formatPrice(revenue)}.`
+      );
+    }
+
+    function selectFirstBookingForDate() {
+      const dayBookings = getBookingsForDate(state.currentDate);
+      state.selectedBookingId = dayBookings[0]?.id || '';
+    }
+
+    function renderDashboard({ keepSelection = false } = {}) {
+      renderTopBar();
+      renderStaffHeader();
+      if (!keepSelection || !getBooking(state.selectedBookingId) || getDatePart(getBooking(state.selectedBookingId).start_time) !== state.currentDate) {
+        selectFirstBookingForDate();
+      }
+      renderTimeline();
+      renderDetail();
+    }
+
+    $('[data-prev-day]').addEventListener('click', () => {
+      state.currentDate = shiftDate(state.currentDate, -1);
+      renderDashboard();
+    });
+
+    $('[data-next-day]').addEventListener('click', () => {
+      state.currentDate = shiftDate(state.currentDate, 1);
+      renderDashboard();
+    });
+
+    $('[data-today]').addEventListener('click', () => {
+      state.currentDate = demo.demoWeek.start_date;
+      renderDashboard();
+    });
+
+    $('[data-detail-notes]').addEventListener('input', event => {
+      const booking = getBooking(state.selectedBookingId);
+      if (booking) booking.notes = event.target.value;
+    });
+
+    $$('[data-status-action]').forEach(button => {
+      button.addEventListener('click', () => updateSelectedStatus(button.dataset.statusAction));
+    });
+
+    $$('[data-open-new-booking]').forEach(button => {
+      button.addEventListener('click', () => {
+        const source = button.dataset.source;
+        const copy =
+          source === 'voucher'
+            ? 'Démo bon cadeau: le prochain écran permettra de saisir un code et de créer un rendez-vous.'
+            : 'Démo walk-in: le prochain écran permettra de créer un rendez-vous immédiat.';
+        openNewBookingModal(copy);
+      });
+    });
+
+    $('[data-day-summary]').addEventListener('click', renderDaySummary);
+
+    $$('[data-close-new-booking]').forEach(button => {
+      button.addEventListener('click', () => $('[data-new-booking-modal]').close());
+    });
+
+    $('[data-new-booking-modal]').addEventListener('click', event => {
+      if (event.target === $('[data-new-booking-modal]')) $('[data-new-booking-modal]').close();
+    });
+
+    renderDashboard();
+  </script>
+
+  <style is:global>
+    .dashboard-page {
+      min-height: 100vh;
+      min-width: 768px;
+      padding: 28px;
+      background:
+        radial-gradient(circle at top right, rgba(200, 169, 110, 0.14), transparent 32rem),
+        var(--paper);
+    }
+
+    .dashboard-shell {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: calc(100vh - 56px);
+      border: 1px solid var(--line);
+      background: rgba(245, 242, 236, 0.96);
+      box-shadow: 0 24px 80px rgba(13, 13, 11, 0.08);
+    }
+
+    .dashboard-topbar,
+    .dashboard-bottombar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .dashboard-bottombar {
+      justify-content: flex-start;
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+    }
+
+    .dashboard-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+    }
+
+    .dashboard-topbar h1,
+    .detail-panel h2,
+    .new-booking-modal h2 {
+      margin-top: 6px;
+      font-size: clamp(34px, 4vw, 48px);
+      font-weight: 300;
+      line-height: 1.05;
+    }
+
+    .date-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .date-controls strong {
+      min-width: 220px;
+      text-align: center;
+      color: var(--ink);
+    }
+
+    .date-controls button,
+    .dashboard-bottombar button,
+    .detail-actions button,
+    .new-booking-modal button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: var(--ink);
+      color: var(--paper);
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      padding: 12px 16px;
+      text-transform: uppercase;
+    }
+
+    .date-controls button {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr);
+      min-height: 0;
+    }
+
+    .timeline-panel {
+      min-width: 0;
+      border-right: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .staff-header {
+      display: grid;
+      grid-template-columns: 70px repeat(var(--staff-count), minmax(170px, 1fr));
+      border-bottom: 1px solid var(--line);
+      background: var(--paper-warm);
+    }
+
+    .time-gutter,
+    .staff-heading {
+      min-height: 60px;
+      padding: 14px 12px;
+      border-right: 1px solid var(--line);
+    }
+
+    .time-gutter,
+    .staff-heading span {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .staff-heading strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1.1;
+    }
+
+    .timeline-scroll {
+      height: calc(100vh - 248px);
+      min-height: 620px;
+      overflow: auto;
+    }
+
+    .timeline-grid {
+      --timeline-height: 1232px;
+      display: grid;
+      grid-template-columns: 70px minmax(510px, 1fr);
+      min-width: 620px;
+      height: var(--timeline-height);
+    }
+
+    .time-rail {
+      position: relative;
+      height: var(--timeline-height);
+      border-right: 1px solid var(--line);
+      background: rgba(237, 233, 224, 0.5);
+    }
+
+    .time-rail span {
+      position: absolute;
+      right: 10px;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+    }
+
+    .lanes {
+      display: grid;
+      grid-template-columns: repeat(var(--staff-count), minmax(170px, 1fr));
+      height: var(--timeline-height);
+    }
+
+    .staff-lane {
+      position: relative;
+      height: var(--timeline-height);
+      border-right: 1px solid var(--line);
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 55px,
+        rgba(13, 13, 11, 0.08) 55px,
+        rgba(13, 13, 11, 0.08) 56px
+      );
+    }
+
+    .empty-slot {
+      position: absolute;
+      left: 0;
+      right: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .empty-slot:active {
+      background: rgba(200, 169, 110, 0.12);
+    }
+
+    .booking-block {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      z-index: 2;
+      display: grid;
+      align-content: start;
+      gap: 3px;
+      overflow: hidden;
+      border: 0;
+      border-left: 5px solid currentColor;
+      border-radius: 8px;
+      box-shadow: 0 10px 20px rgba(13, 13, 11, 0.1);
+      cursor: pointer;
+      padding: 9px 10px;
+      text-align: left;
+      touch-action: manipulation;
+    }
+
+    .booking-block.is-selected {
+      outline: 3px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    .booking-time,
+    .booking-block span {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .booking-block strong {
+      font-size: 16px;
+      font-weight: 400;
+      line-height: 1.1;
+    }
+
+    .status-confirmed {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .status-completed {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .status-cancelled {
+      background: #e5e7eb;
+      color: #4b5563;
+    }
+
+    .status-no-show {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .status-pending {
+      background: #fef3c7;
+      color: #a16207;
+    }
+
+    .detail-panel {
+      min-width: 0;
+      padding: 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent),
+        var(--paper);
+    }
+
+    .detail-empty p:last-child {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 22px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .detail-list div {
+      display: grid;
+      gap: 4px;
+    }
+
+    .detail-list dt,
+    .notes-field {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .detail-list dd {
+      font-size: 19px;
+      line-height: 1.3;
+    }
+
+    .notes-field {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .notes-field textarea {
+      width: 100%;
+      min-height: 150px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.44);
+      color: var(--ink);
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 19px;
+      letter-spacing: 0;
+      line-height: 1.45;
+      padding: 14px;
+      text-transform: none;
+    }
+
+    .detail-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .detail-actions button:nth-child(3),
+    .detail-actions button:nth-child(4) {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .new-booking-modal {
+      width: min(92vw, 520px);
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      padding: 0;
+      margin: auto;
+    }
+
+    .new-booking-modal::backdrop {
+      background: rgba(13, 13, 11, 0.55);
+      backdrop-filter: blur(6px);
+    }
+
+    .new-booking-modal > div {
+      position: relative;
+      padding: 34px;
+    }
+
+    .new-booking-modal p:not(.dashboard-eyebrow) {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.55;
+    }
+
+    .new-booking-modal button:last-child {
+      width: 100%;
+      margin-top: 24px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 36px;
+      height: 36px;
+      min-height: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      color: var(--ink) !important;
+      font-size: 24px !important;
+      line-height: 1;
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-page {
+        padding: 16px;
+      }
+
+      .dashboard-topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .dashboard-layout {
+        grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+      }
+    }
+  </style>
+</Base>

@@ -1,0 +1,54 @@
+---
+import BookingBlock from './BookingBlock.astro';
+import BookingDetail from './BookingDetail.astro';
+import PractitionerColumn from './PractitionerColumn.astro';
+---
+
+<section class="cabinet-shell" aria-label="Vue cabinet multi-praticien">
+  <header class="cabinet-topbar">
+    <div>
+      <p class="dashboard-eyebrow" data-cabinet-label>Cabinet</p>
+      <h1>Vue semaine</h1>
+    </div>
+
+    <div class="cabinet-controls" aria-label="Contrôles de la semaine">
+      <button type="button" data-prev-week aria-label="Semaine précédente">←</button>
+      <strong data-week-label></strong>
+      <button type="button" data-next-week aria-label="Semaine suivante">→</button>
+      <button type="button" data-current-week>Aujourd'hui</button>
+    </div>
+
+    <div class="practitioner-filters" data-practitioner-filters aria-label="Filtrer par praticien"></div>
+
+    <button class="new-appointment-button" type="button" data-open-week-booking>
+      + Nouveau RDV
+    </button>
+  </header>
+
+  <div class="cabinet-main">
+    <section class="week-grid-panel" aria-label="Planning hebdomadaire">
+      <div class="week-days" data-week-days></div>
+      <div class="week-grid-scroll">
+        <div class="week-grid" data-week-grid></div>
+      </div>
+    </section>
+
+    <aside class="week-detail-drawer" data-week-detail-drawer aria-label="Détail du rendez-vous">
+      <button class="drawer-close" type="button" data-close-week-detail aria-label="Fermer le détail">×</button>
+      <BookingDetail />
+    </aside>
+  </div>
+
+  <dialog class="new-booking-modal" data-week-booking-modal aria-labelledby="week-booking-title">
+    <div>
+      <button class="modal-close" type="button" data-close-week-booking aria-label="Fermer">×</button>
+      <p class="dashboard-eyebrow">Démo locale</p>
+      <h2 id="week-booking-title">Nouveau rendez-vous</h2>
+      <p data-week-booking-copy></p>
+      <button type="button" data-close-week-booking>Compris</button>
+    </div>
+  </dialog>
+
+  <BookingBlock />
+  <PractitionerColumn />
+</section>
