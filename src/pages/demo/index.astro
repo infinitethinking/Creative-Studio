@@ -1,7 +1,9 @@
 ---
 import Base from '../../layouts/Base.astro';
 
-const basePath = import.meta.env.BASE_URL;
+const basePath = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
 const demoViews = {
   client: {
     src: `${basePath}demo/book?practice=barbier`,
