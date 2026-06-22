@@ -666,5 +666,49 @@ who run on phone bookings, paper diaries, and manual admin.
 
 ---
 
+## 20. Competitive Reference Points
+
+We are B2B only — no directory, no marketplace.
+We sell to practitioners, they bring their own clients.
+
+Features to match or beat from competitors:
+
+FROM CALENDLY
+- Shareable booking link per practitioner
+  format: [domain]/book/[practitioner-slug]
+- Onboarding under 1 hour, live immediately
+
+FROM FRESHA
+- Tablet day view quality: beautiful, touch-first
+- Gift vouchers: purchasable online, redeemable at booking
+- Loyalty stamp card: digital, automatic
+- No-show protection: Stripe card hold at booking
+  captured if late cancel or no-show
+  released if cancelled within policy
+  practitioner sets the policy rules
+
+FROM DOCTOLIB
+- Client record: full history, notes, visit log
+  feels thorough, builds practitioner trust
+
+FROM ONEDOC
+- Swiss-native: QR bill, Infomaniak, .ch, FR+DE
+- GDPR by default, data stays in Switzerland
+
+EXPLICIT NON-GOALS (do not build)
+- No practitioner directory
+- No patient discovery
+- No marketplace features
+- No network effect dependencies
+
+KEY DIFFERENTIATORS VS ALL COMPETITORS
+- Fixed fee, no transaction percentage
+- Practitioner owns their data
+- Human onboarding and setup included
+- Swiss-native from day one
+- Works for health AND salon AND any time-seller
+
+---
+
 *Spec version 1.0 — Infinite Thinking Studio, Geneva*
 *Built with Astro + Supabase + Stripe + Infomaniak*
