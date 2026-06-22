@@ -5,15 +5,9 @@
   <button class="back-button" type="button" data-back-to-services>← Retour aux services</button>
 
   <p class="booking-eyebrow">Étape 2</p>
-  <h2 id="datetime-step-title">Choisissez un horaire</h2>
+  <h2 id="datetime-step-title" data-picker-title>Choisissez un praticien</h2>
   <p class="booking-muted" data-selected-service-copy></p>
 
-  <div class="field-group" data-practitioner-group>
-    <label for="practitioner-select">Praticien</label>
-    <select id="practitioner-select" data-practitioner-select></select>
-  </div>
-
-  <div class="week-calendar" data-week-calendar aria-live="polite"></div>
-
-  <button class="primary-action" type="button" data-go-confirm disabled>Continuer</button>
+  <div class="selection-trail" data-selection-trail></div>
+  <div class="booking-picker" data-booking-picker aria-live="polite"></div>
 </section>

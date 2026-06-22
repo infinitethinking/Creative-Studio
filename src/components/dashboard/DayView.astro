@@ -15,10 +15,11 @@ import BookingDetail from './BookingDetail.astro';
       <strong data-current-date></strong>
       <button type="button" data-next-day aria-label="Jour suivant">→</button>
       <button type="button" data-today>Aujourd'hui</button>
+      <button type="button" data-toggle-admin>Configuration</button>
     </div>
   </header>
 
-  <div class="dashboard-layout">
+  <div class="dashboard-layout" data-dashboard-layout>
     <section class="timeline-panel" aria-label="Planning du jour">
       <div class="staff-header" data-staff-header></div>
       <div class="timeline-scroll" data-timeline-scroll>
@@ -28,6 +29,39 @@ import BookingDetail from './BookingDetail.astro';
 
     <BookingDetail />
   </div>
+
+  <section class="admin-config-panel" data-admin-panel hidden aria-label="Configuration de la plateforme">
+    <div class="admin-config-header">
+      <div>
+        <p class="dashboard-eyebrow">Admin</p>
+        <h2>Configuration du cabinet</h2>
+      </div>
+      <button type="button" data-toggle-admin>Retour au planning</button>
+    </div>
+
+    <div class="admin-config-grid">
+      <article>
+        <h3>Équipe et rôles</h3>
+        <div data-admin-staff></div>
+        <button type="button">+ Ajouter un utilisateur</button>
+      </article>
+
+      <article>
+        <h3>Disponibilités</h3>
+        <div data-admin-availability></div>
+      </article>
+
+      <article>
+        <h3>Prestations</h3>
+        <div data-admin-services></div>
+      </article>
+
+      <article>
+        <h3>Image de marque</h3>
+        <p>Logo, couleurs, typographies, photos, textes SMS/email et ton de voix sont adaptables pour chaque cabinet.</p>
+      </article>
+    </div>
+  </section>
 
   <footer class="dashboard-bottombar">
     <button type="button" data-open-new-booking data-source="walk-in">+ Walk-in</button>
@@ -41,6 +75,7 @@ import BookingDetail from './BookingDetail.astro';
       <p class="dashboard-eyebrow">Démo locale</p>
       <h2 id="new-booking-title">Nouveau rendez-vous</h2>
       <p data-new-booking-copy></p>
+      <button type="button" data-create-walk-in hidden>Créer ce rendez-vous</button>
       <button type="button" data-close-new-booking>Compris</button>
     </div>
   </dialog>

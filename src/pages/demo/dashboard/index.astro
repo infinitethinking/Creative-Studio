@@ -66,7 +66,7 @@ const dashboardDemoData = {
     const practice = demo.practices.find(item => item.id === PRACTICE_ID);
     const staff = demo.staff.filter(member => member.practice_id === PRACTICE_ID && member.active);
     const services = demo.services.filter(service => service.practice_id === PRACTICE_ID);
-    const clients = demo.clients.filter(client => client.practice_id === PRACTICE_ID);
+    const clients = demo.clients.filter(client => client.practice_id === PRACTICE_ID).map(client => ({ ...client }));
     const practiceBookings = demo.bookings
       .filter(booking => booking.practice_id === PRACTICE_ID)
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -74,6 +74,7 @@ const dashboardDemoData = {
     const state = {
       currentDate: practiceBookings[0]?.start_time.slice(0, 10) || demo.demoWeek.start_date,
       selectedBookingId: '',
+      pendingWalkIn: null,
       bookings: practiceBookings.map(booking => ({ ...booking })),
     };
 
@@ -101,6 +102,13 @@ const dashboardDemoData = {
 
     function formatPrice(amount) {
       return `CHF ${Number(amount).toLocaleString('fr-CH')}`;
+    }
+
+    function addMinutesToTimestamp(dateString, timeString, minutesToAdd) {
+      const date = new Date(`${dateString}T${timeString}:00+02:00`);
+      date.setMinutes(date.getMinutes() + minutesToAdd);
+      const pad = value => String(value).padStart(2, '0');
+      return `${dateString}T${pad(date.getHours())}:${pad(date.getMinutes())}:00+02:00`;
     }
 
     function formatDate(dateString) {
@@ -153,6 +161,50 @@ const dashboardDemoData = {
           </div>
         `),
       ].join('');
+    }
+
+    function renderAdminPanel() {
+      const staffTarget = $('[data-admin-staff]');
+      const availabilityTarget = $('[data-admin-availability]');
+      const servicesTarget = $('[data-admin-services]');
+      if (!staffTarget || !availabilityTarget || !servicesTarget) return;
+
+      staffTarget.innerHTML = staff.map(member => `
+        <div class="admin-row">
+          <strong>${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</strong>
+          <span>${member.role} · pause ${member.buffer_override_minutes ?? practice.default_buffer_minutes} min</span>
+        </div>
+      `).join('');
+
+      availabilityTarget.innerHTML = staff.map(member => {
+        const days = Object.entries(member.working_hours)
+          .filter(([, hours]) => Boolean(hours))
+          .map(([day, hours]) => `${day.toUpperCase()} ${hours.start}-${hours.end}`)
+          .join(' · ');
+
+        return `
+          <div class="admin-row">
+            <strong>${escapeHtml(member.first_name)}</strong>
+            <span>${escapeHtml(days)}</span>
+          </div>
+        `;
+      }).join('');
+
+      servicesTarget.innerHTML = services.map(service => `
+        <div class="admin-row">
+          <strong>${escapeHtml(service.name)}</strong>
+          <span>${service.duration_minutes} min · ${formatPrice(service.base_price)} · ${service.payment_timing === 'upfront' ? 'paiement avant' : 'paiement après'}</span>
+        </div>
+      `).join('');
+    }
+
+    function toggleAdminPanel() {
+      const layout = $('[data-dashboard-layout]');
+      const panel = $('[data-admin-panel]');
+      const showingAdmin = panel.hidden;
+      panel.hidden = !showingAdmin;
+      layout.hidden = showingAdmin;
+      renderAdminPanel();
     }
 
     function buildTimeRail() {
@@ -251,7 +303,8 @@ const dashboardDemoData = {
         slot.addEventListener('click', () => {
           const member = getStaff(slot.dataset.emptyStaff);
           openNewBookingModal(
-            `Créneau libre le ${formatDate(state.currentDate)} à ${slot.dataset.emptyTime} avec ${member.first_name} ${member.last_name}.`
+            `Créneau libre le ${formatDate(state.currentDate)} à ${slot.dataset.emptyTime} avec ${member.first_name} ${member.last_name}.`,
+            { staffId: member.id, date: state.currentDate, time: slot.dataset.emptyTime }
           );
         });
       });
@@ -294,9 +347,61 @@ const dashboardDemoData = {
       renderDetail();
     }
 
-    function openNewBookingModal(copy) {
+    function openNewBookingModal(copy, pendingWalkIn = null) {
+      state.pendingWalkIn = pendingWalkIn;
       $('[data-new-booking-copy]').textContent = copy;
+      $('[data-create-walk-in]').hidden = !pendingWalkIn;
       $('[data-new-booking-modal]').showModal();
+    }
+
+    function createWalkInBooking() {
+      if (!state.pendingWalkIn) return;
+
+      const staffMember = getStaff(state.pendingWalkIn.staffId) || staff[0];
+      const staffService = demo.staff_services.find(link => link.staff_id === staffMember.id);
+      const service = getService(staffService?.service_id) || services[0];
+      if (!staffMember || !service) return;
+
+      const clientId = `demo-walk-in-client-${Date.now()}`;
+      const bookingId = `demo-walk-in-booking-${Date.now()}`;
+      clients.push({
+        id: clientId,
+        practice_id: PRACTICE_ID,
+        first_name: 'Client',
+        last_name: 'Walk-in',
+        phone: '+41 79 000 00 00',
+        email: 'walk-in@example.ch',
+        preferred_channel: 'sms',
+        preferred_staff_id: staffMember.id,
+        notes: 'Créé depuis le bouton walk-in de la démo.',
+        last_visit_date: null,
+        no_show_count: 0,
+        imported_from: 'manual',
+        created_at: `${state.pendingWalkIn.date}T${state.pendingWalkIn.time}:00+02:00`,
+      });
+
+      state.bookings.push({
+        id: bookingId,
+        practice_id: PRACTICE_ID,
+        staff_id: staffMember.id,
+        service_id: service.id,
+        client_id: clientId,
+        start_time: `${state.pendingWalkIn.date}T${state.pendingWalkIn.time}:00+02:00`,
+        end_time: addMinutesToTimestamp(state.pendingWalkIn.date, state.pendingWalkIn.time, service.duration_minutes),
+        status: 'confirmed',
+        payment_status: service.payment_timing === 'upfront' ? 'paid' : 'unpaid',
+        payment_timing: service.payment_timing,
+        stripe_payment_id: null,
+        amount: service.base_price,
+        notes: 'Rendez-vous walk-in ajouté localement dans la démo.',
+        created_by: staffMember.user_id,
+        created_at: `${state.pendingWalkIn.date}T${state.pendingWalkIn.time}:00+02:00`,
+      });
+
+      state.selectedBookingId = bookingId;
+      $('[data-new-booking-modal]').close();
+      state.pendingWalkIn = null;
+      renderDashboard({ keepSelection: true });
     }
 
     function renderDaySummary() {
@@ -351,6 +456,10 @@ const dashboardDemoData = {
       button.addEventListener('click', () => updateSelectedStatus(button.dataset.statusAction));
     });
 
+    $$('[data-toggle-admin]').forEach(button => {
+      button.addEventListener('click', toggleAdminPanel);
+    });
+
     $$('[data-open-new-booking]').forEach(button => {
       button.addEventListener('click', () => {
         const source = button.dataset.source;
@@ -358,18 +467,32 @@ const dashboardDemoData = {
           source === 'voucher'
             ? 'Démo bon cadeau: le prochain écran permettra de saisir un code et de créer un rendez-vous.'
             : 'Démo walk-in: le prochain écran permettra de créer un rendez-vous immédiat.';
-        openNewBookingModal(copy);
+        if (source === 'voucher') {
+          openNewBookingModal(copy);
+          return;
+        }
+
+        openNewBookingModal(copy, { staffId: staff[0].id, date: state.currentDate, time: '10:30' });
       });
     });
 
     $('[data-day-summary]').addEventListener('click', renderDaySummary);
+    $('[data-create-walk-in]').addEventListener('click', createWalkInBooking);
 
     $$('[data-close-new-booking]').forEach(button => {
-      button.addEventListener('click', () => $('[data-new-booking-modal]').close());
+      button.addEventListener('click', () => {
+        state.pendingWalkIn = null;
+        $('[data-create-walk-in]').hidden = true;
+        $('[data-new-booking-modal]').close();
+      });
     });
 
     $('[data-new-booking-modal]').addEventListener('click', event => {
-      if (event.target === $('[data-new-booking-modal]')) $('[data-new-booking-modal]').close();
+      if (event.target === $('[data-new-booking-modal]')) {
+        state.pendingWalkIn = null;
+        $('[data-create-walk-in]').hidden = true;
+        $('[data-new-booking-modal]').close();
+      }
     });
 
     renderDashboard();
@@ -468,6 +591,89 @@ const dashboardDemoData = {
       display: grid;
       grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr);
       min-height: 0;
+    }
+
+    .admin-config-panel {
+      min-height: calc(100vh - 184px);
+      padding: 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent),
+        var(--paper);
+    }
+
+    .admin-config-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .admin-config-header h2 {
+      margin-top: 6px;
+      font-size: clamp(34px, 4vw, 52px);
+      font-weight: 300;
+      line-height: 1.05;
+    }
+
+    .admin-config-header button,
+    .admin-config-grid button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: var(--ink);
+      color: var(--paper);
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      padding: 12px 16px;
+      text-transform: uppercase;
+    }
+
+    .admin-config-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .admin-config-grid article {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.32);
+      padding: 22px;
+    }
+
+    .admin-config-grid h3 {
+      font-size: 28px;
+      font-weight: 300;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .admin-config-grid article > p {
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.55;
+    }
+
+    .admin-row {
+      display: grid;
+      gap: 5px;
+      border-top: 1px solid var(--line);
+      padding: 13px 0;
+    }
+
+    .admin-row strong {
+      font-size: 19px;
+      font-weight: 300;
+    }
+
+    .admin-row span {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      line-height: 1.5;
+      text-transform: uppercase;
     }
 
     .timeline-panel {
