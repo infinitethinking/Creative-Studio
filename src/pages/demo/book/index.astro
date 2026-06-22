@@ -105,6 +105,7 @@ const bookingDemoData = {
       return demo.staff.filter(member => staffIds.includes(member.id) && member.active);
     };
     const formatPrice = amount => `CHF ${Number(amount).toLocaleString('fr-CH')}`;
+    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const getDatePart = timestamp => timestamp.slice(0, 10);
     const getTimePart = timestamp => timestamp.slice(11, 16);
     const getYearPart = timestamp => timestamp.slice(0, 4);
@@ -121,6 +122,42 @@ const bookingDemoData = {
     function formatDate(date) {
       const midday = new Date(`${date}T12:00:00`);
       return `${dayLabels[midday.getDay()]} ${midday.getDate()} ${monthLabels[midday.getMonth()]}`;
+    }
+
+    function timeToMinutes(time) {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    }
+
+    function minutesToTime(minutes) {
+      return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    }
+
+    function makeTimestamp(date, minutes) {
+      return `${date}T${minutesToTime(minutes)}:00+02:00`;
+    }
+
+    function addDays(dateString, days) {
+      const date = new Date(`${dateString}T12:00:00`);
+      date.setDate(date.getDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function getWeekdayDates() {
+      const dates = [];
+      let current = demo.demoWeek.start_date;
+
+      while (current <= demo.demoWeek.end_date) {
+        const day = new Date(`${current}T12:00:00`).getDay();
+        if (day >= 1 && day <= 5) dates.push(current);
+        current = addDays(current, 1);
+      }
+
+      return dates;
+    }
+
+    function overlaps(startA, endA, startB, endB) {
+      return startA < endB && endA > startB;
     }
 
     function getDisplayServiceName(serviceId) {
@@ -193,13 +230,52 @@ const bookingDemoData = {
     }
 
     function getBaseSlots() {
-      const eligibleStaffIds = getStaffForService(state.serviceId).map(member => member.id);
-      return demo.availability_slots
-        .filter(slot => slot.practice_id === state.practiceId)
-        .filter(slot => slot.service_id === state.serviceId)
-        .filter(slot => eligibleStaffIds.includes(slot.staff_id))
-        .filter(slot => state.staffId === 'any' || slot.staff_id === state.staffId)
-        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+      const service = getService(state.serviceId);
+      if (!service) return [];
+
+      const eligibleStaff = getStaffForService(state.serviceId)
+        .filter(member => state.staffId === 'any' || member.id === state.staffId);
+
+      return eligibleStaff.flatMap(member => {
+        const buffer = member.buffer_override_minutes ?? getPractice(state.practiceId)?.default_buffer_minutes ?? 15;
+        const bookings = demo.bookings.filter(booking => booking.staff_id === member.id);
+
+        return getWeekdayDates().flatMap(date => {
+          const dayKey = dayKeys[new Date(`${date}T12:00:00`).getDay()];
+          const workingDay = member.working_hours?.[dayKey];
+          if (!workingDay) return [];
+
+          const dayStart = timeToMinutes(workingDay.start);
+          const dayEnd = timeToMinutes(workingDay.end);
+          const breakStart = workingDay.break ? timeToMinutes(workingDay.break.start) : null;
+          const breakEnd = workingDay.break ? timeToMinutes(workingDay.break.end) : null;
+          const slots = [];
+
+          for (let start = dayStart; start + service.duration_minutes <= dayEnd; start += 30) {
+            const end = start + service.duration_minutes;
+            const crossesBreak =
+              breakStart !== null && breakEnd !== null && overlaps(start, end, breakStart, breakEnd);
+            const crossesBooking = bookings.some(booking => {
+              if (getDatePart(booking.start_time) !== date) return false;
+              return overlaps(start, end, timeToMinutes(getTimePart(booking.start_time)), timeToMinutes(getTimePart(booking.end_time)));
+            });
+
+            if (crossesBreak || crossesBooking) continue;
+
+            slots.push({
+              practice_id: state.practiceId,
+              staff_id: member.id,
+              service_id: service.id,
+              start_time: makeTimestamp(date, start),
+              end_time: makeTimestamp(date, end),
+              status: 'disponible',
+              booking_id: null,
+            });
+          }
+
+          return slots;
+        });
+      }).sort((a, b) => a.start_time.localeCompare(b.start_time));
     }
 
     function renderTrail() {
