@@ -46,6 +46,8 @@ const bookingDemoData = {
   <script id="booking-demo-data" type="application/json" set:html={JSON.stringify(bookingDemoData)}></script>
 
   <script>
+    import { generateIcs } from '../../../utils/generateIcs';
+
     const dataElement = document.getElementById('booking-demo-data');
     const demo = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
 
@@ -332,46 +334,30 @@ const bookingDemoData = {
       return `RDV-${value}`;
     }
 
-    function toIcsDate(timestamp) {
-      return new Date(timestamp).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-    }
-
-    function buildIcsContent() {
+    function downloadIcs() {
       const practice = getPractice(state.practiceId);
       const service = getService(state.serviceId);
       const staffMember = getStaff(state.slot?.staff_id || state.staffId);
-      if (!practice || !service || !staffMember || !state.slot) return '';
+      if (!practice || !service || !staffMember || !state.slot) return;
 
-      return [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//Infinite Thinking//Démo Réservation//FR',
-        'BEGIN:VEVENT',
-        `UID:${state.reference}@demo.infinitethinking.ch`,
-        `DTSTART:${toIcsDate(state.slot.start_time)}`,
-        `DTEND:${toIcsDate(state.slot.end_time)}`,
-        `SUMMARY:${service.name} — ${staffMember.first_name} ${staffMember.last_name}`,
-        `LOCATION:${practice.address}, ${practice.city}`,
-        `DESCRIPTION:Confirmation ${state.reference}\\nAnnulation: démo uniquement`,
-        'BEGIN:VALARM',
-        'TRIGGER:-PT24H',
-        'ACTION:DISPLAY',
-        'DESCRIPTION:Rappel: votre RDV demain',
-        'END:VALARM',
-        'END:VEVENT',
-        'END:VCALENDAR',
-      ].join('\r\n');
-    }
-
-    function downloadIcs() {
-      const content = buildIcsContent();
-      if (!content) return;
+      const reference = state.reference || makeReference();
+      state.reference = reference;
+      const content = generateIcs({
+        id: reference,
+        serviceName: service.name,
+        practitionerName: `${staffMember.first_name} ${staffMember.last_name}`,
+        practiceAddress: practice.address,
+        practiceCity: practice.city,
+        startTime: new Date(state.slot.start_time),
+        endTime: new Date(state.slot.end_time),
+        cancelUrl: new URL('#annulation-demo', window.location.href).toString(),
+      });
 
       const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${state.reference || 'rdv-demo'}.ics`;
+      link.download = `rdv-${getDatePart(state.slot.start_time)}.ics`;
       document.body.appendChild(link);
       link.click();
       link.remove();
