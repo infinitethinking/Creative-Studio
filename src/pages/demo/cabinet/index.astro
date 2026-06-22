@@ -1,0 +1,871 @@
+---
+import Base from '../../../layouts/Base.astro';
+import WeekView from '../../../components/dashboard/WeekView.astro';
+import { demoData, demoWeek } from '../../../data/demo';
+
+const cabinetDemoData = {
+  demoWeek,
+  ...demoData,
+};
+---
+
+<Base
+  title="Démo cabinet - Infinite Thinking"
+  description="Démo desktop de la vue semaine multi-praticien Infinite Thinking."
+>
+  <main class="cabinet-page">
+    <WeekView />
+  </main>
+
+  <script id="cabinet-demo-data" type="application/json" set:html={JSON.stringify(cabinetDemoData)}></script>
+
+  <script>
+    const dataElement = document.getElementById('cabinet-demo-data');
+    const demo = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
+
+    const PRACTICE_ID = '00000000-0000-4000-8000-000000000101';
+    const DAY_START_MINUTES = 8 * 60;
+    const DAY_END_MINUTES = 18 * 60;
+    const SLOT_MINUTES = 30;
+    const ROW_HEIGHT = 58;
+    const COLUMN_HEADER_HEIGHT = 64;
+
+    const statusLabels = {
+      pending: 'En attente',
+      confirmed: 'Confirmé',
+      completed: 'Complété',
+      cancelled: 'Annulé',
+      no_show: 'No show',
+    };
+
+    const statusClass = {
+      pending: 'status-pending',
+      confirmed: 'status-confirmed',
+      completed: 'status-completed',
+      cancelled: 'status-cancelled',
+      no_show: 'status-no-show',
+    };
+
+    const dayLabels = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const shortDayLabels = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+    const monthLabels = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+    const $ = selector => document.querySelector(selector);
+    const $$ = selector => Array.from(document.querySelectorAll(selector));
+    const practice = demo.practices.find(item => item.id === PRACTICE_ID);
+    const staff = demo.staff.filter(member => member.practice_id === PRACTICE_ID && member.active);
+    const services = demo.services.filter(service => service.practice_id === PRACTICE_ID);
+    const clients = demo.clients.filter(client => client.practice_id === PRACTICE_ID);
+
+    const state = {
+      weekStart: demo.demoWeek.start_date,
+      selectedBookingId: '',
+      activeStaffId: 'all',
+      bookings: demo.bookings
+        .filter(booking => booking.practice_id === PRACTICE_ID)
+        .map(booking => ({ ...booking })),
+    };
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function getDatePart(timestamp) {
+      return timestamp.slice(0, 10);
+    }
+
+    function getTimePart(timestamp) {
+      return timestamp.slice(11, 16);
+    }
+
+    function minutesFromTime(time) {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    }
+
+    function formatPrice(amount) {
+      return `CHF ${Number(amount).toLocaleString('fr-CH')}`;
+    }
+
+    function shiftDate(dateString, days) {
+      const date = new Date(`${dateString}T12:00:00`);
+      date.setDate(date.getDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function formatDate(dateString) {
+      const date = new Date(`${dateString}T12:00:00`);
+      return `${dayLabels[date.getDay()]} ${date.getDate()} ${monthLabels[date.getMonth()]}`;
+    }
+
+    function formatShortDate(dateString) {
+      const date = new Date(`${dateString}T12:00:00`);
+      return `${shortDayLabels[date.getDay()]} ${date.getDate()}`;
+    }
+
+    function getWeekDates() {
+      return Array.from({ length: 7 }, (_, index) => shiftDate(state.weekStart, index));
+    }
+
+    function getBooking(id) {
+      return state.bookings.find(booking => booking.id === id);
+    }
+
+    function getService(id) {
+      return services.find(service => service.id === id);
+    }
+
+    function getClient(id) {
+      return clients.find(client => client.id === id);
+    }
+
+    function getStaff(id) {
+      return staff.find(member => member.id === id);
+    }
+
+    function getVisibleStaff() {
+      return state.activeStaffId === 'all'
+        ? staff
+        : staff.filter(member => member.id === state.activeStaffId);
+    }
+
+    function getBookingsForWeek() {
+      const weekDates = new Set(getWeekDates());
+      return state.bookings
+        .filter(booking => weekDates.has(getDatePart(booking.start_time)))
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+
+    function renderTopBar() {
+      const weekDates = getWeekDates();
+      $('[data-cabinet-label]').textContent = practice ? `${practice.name} · ${practice.city}` : 'Cabinet';
+      $('[data-week-label]').textContent = `Semaine du ${formatDate(weekDates[0])}`;
+    }
+
+    function renderFilters() {
+      const container = $('[data-practitioner-filters]');
+      container.innerHTML = [
+        `<button type="button" class="${state.activeStaffId === 'all' ? 'is-active' : ''}" data-filter-staff="all">Tous</button>`,
+        ...staff.map(member => `
+          <button
+            type="button"
+            class="${state.activeStaffId === member.id ? 'is-active' : ''}"
+            data-filter-staff="${member.id}"
+          >
+            ${escapeHtml(member.first_name)}
+          </button>
+        `),
+      ].join('');
+
+      container.querySelectorAll('button').forEach(button => {
+        button.addEventListener('click', () => {
+          state.activeStaffId = button.dataset.filterStaff;
+          state.selectedBookingId = '';
+          renderCabinet();
+        });
+      });
+    }
+
+    function renderWeekDays() {
+      const days = $('[data-week-days]');
+      days.innerHTML = [
+        '<span class="week-time-label">08:00-18:00</span>',
+        ...getWeekDates().map(date => `<span>${formatShortDate(date)}</span>`),
+      ].join('');
+    }
+
+    function buildTimeRail() {
+      const labels = [];
+      for (let minutes = DAY_START_MINUTES; minutes <= DAY_END_MINUTES; minutes += SLOT_MINUTES) {
+        const top = COLUMN_HEADER_HEIGHT + ((minutes - DAY_START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+        const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+        const mins = String(minutes % 60).padStart(2, '0');
+        labels.push(`<span style="top:${top}px">${hours}:${mins}</span>`);
+      }
+      return `<div class="week-time-rail">${labels.join('')}</div>`;
+    }
+
+    function makeEmptyCell(member, date, startMinutes) {
+      const top = ((startMinutes - DAY_START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+      const hours = String(Math.floor(startMinutes / 60)).padStart(2, '0');
+      const minutes = String(startMinutes % 60).padStart(2, '0');
+
+      return `
+        <button
+          class="week-empty-cell"
+          type="button"
+          style="top:${top}px;height:${ROW_HEIGHT}px"
+          data-empty-staff="${member.id}"
+          data-empty-date="${date}"
+          data-empty-time="${hours}:${minutes}"
+          aria-label="Créer un rendez-vous ${formatShortDate(date)} à ${hours}:${minutes} avec ${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}"
+        ></button>
+      `;
+    }
+
+    function fillBookingBlock(block, booking) {
+      const service = getService(booking.service_id);
+      const client = getClient(booking.client_id);
+      const date = getDatePart(booking.start_time);
+      block.dataset.bookingId = booking.id;
+      block.className = `booking-block week-booking-block ${statusClass[booking.status] || 'status-pending'}${booking.id === state.selectedBookingId ? ' is-selected' : ''}`;
+      block.querySelector('[data-booking-time]').textContent = `${formatShortDate(date)} · ${getTimePart(booking.start_time)}`;
+      block.querySelector('[data-booking-client]').textContent = client ? `${client.first_name} ${client.last_name}` : 'Client';
+      block.querySelector('[data-booking-service]').textContent = service?.name || 'Service';
+    }
+
+    function makeBookingBlock(booking) {
+      const template = document.getElementById('booking-block-template');
+      const block = template.content.firstElementChild.cloneNode(true);
+      const start = minutesFromTime(getTimePart(booking.start_time));
+      const end = minutesFromTime(getTimePart(booking.end_time));
+      const top = ((start - DAY_START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+      const height = Math.max(((end - start) / SLOT_MINUTES) * ROW_HEIGHT - 8, 44);
+
+      block.style.top = `${top}px`;
+      block.style.height = `${height}px`;
+      fillBookingBlock(block, booking);
+
+      return block.outerHTML;
+    }
+
+    function renderPractitionerColumn(member) {
+      const template = document.getElementById('practitioner-column-template');
+      const column = template.content.firstElementChild.cloneNode(true);
+      const weekDates = getWeekDates();
+      const body = column.querySelector('[data-practitioner-body]');
+      const buffer = member.buffer_override_minutes ?? practice.default_buffer_minutes;
+
+      column.dataset.practitionerColumn = member.id;
+      column.querySelector('[data-practitioner-name]').textContent = `${member.first_name} ${member.last_name}`;
+      column.querySelector('[data-practitioner-meta]').textContent = `${buffer} min de pause`;
+
+      body.innerHTML = weekDates.map(date => {
+        const emptyCells = [];
+        for (let minutes = DAY_START_MINUTES; minutes < DAY_END_MINUTES; minutes += SLOT_MINUTES) {
+          emptyCells.push(makeEmptyCell(member, date, minutes));
+        }
+
+        const blocks = getBookingsForWeek()
+          .filter(booking => booking.staff_id === member.id && getDatePart(booking.start_time) === date)
+          .map(makeBookingBlock);
+
+        return `
+          <div class="week-day-lane" data-column-date="${date}">
+            ${emptyCells.join('')}
+            ${blocks.join('')}
+          </div>
+        `;
+      }).join('');
+
+      return column.outerHTML;
+    }
+
+    function renderWeekGrid() {
+      const grid = $('[data-week-grid]');
+      const visibleStaff = getVisibleStaff();
+
+      grid.style.setProperty('--staff-count', visibleStaff.length);
+      grid.innerHTML = `
+        ${buildTimeRail()}
+        <div class="week-practitioner-columns">
+          ${visibleStaff.map(renderPractitionerColumn).join('')}
+        </div>
+      `;
+
+      grid.querySelectorAll('.booking-block').forEach(block => {
+        block.addEventListener('click', () => {
+          state.selectedBookingId = block.dataset.bookingId;
+          renderWeekGrid();
+          renderDetail();
+          openDetailDrawer();
+        });
+      });
+
+      grid.querySelectorAll('.week-empty-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const member = getStaff(cell.dataset.emptyStaff);
+          openNewBookingModal(
+            `Créneau libre ${formatShortDate(cell.dataset.emptyDate)} à ${cell.dataset.emptyTime} avec ${member.first_name} ${member.last_name}.`
+          );
+        });
+      });
+    }
+
+    function renderDetail() {
+      const empty = $('[data-detail-empty]');
+      const content = $('[data-detail-content]');
+      const booking = getBooking(state.selectedBookingId);
+
+      if (!booking) {
+        empty.hidden = false;
+        content.hidden = true;
+        return;
+      }
+
+      const client = getClient(booking.client_id);
+      const service = getService(booking.service_id);
+      const member = getStaff(booking.staff_id);
+
+      empty.hidden = true;
+      content.hidden = false;
+      $('[data-detail-status]').textContent = statusLabels[booking.status] || 'En attente';
+      $('[data-detail-status]').className = `dashboard-eyebrow ${statusClass[booking.status] || 'status-pending'}`;
+      $('[data-detail-client]').textContent = client ? `${client.first_name} ${client.last_name}` : 'Client';
+      $('[data-detail-service]').textContent = service?.name || 'Service';
+      $('[data-detail-duration]').textContent = `${service?.duration_minutes || 0} min`;
+      $('[data-detail-price]').textContent = formatPrice(booking.amount);
+      $('[data-detail-practitioner]').textContent = member ? `${member.first_name} ${member.last_name}` : 'Praticien';
+      $('[data-detail-phone]').textContent = client?.phone || '-';
+      $('[data-detail-notes]').value = booking.notes || '';
+    }
+
+    function openDetailDrawer() {
+      $('[data-week-detail-drawer]').classList.add('is-open');
+    }
+
+    function closeDetailDrawer() {
+      $('[data-week-detail-drawer]').classList.remove('is-open');
+    }
+
+    function updateSelectedStatus(status) {
+      const booking = getBooking(state.selectedBookingId);
+      if (!booking) return;
+
+      booking.status = status;
+      renderWeekGrid();
+      renderDetail();
+    }
+
+    function openNewBookingModal(copy) {
+      $('[data-week-booking-copy]').textContent = copy;
+      $('[data-week-booking-modal]').showModal();
+    }
+
+    function renderCabinet() {
+      renderTopBar();
+      renderFilters();
+      renderWeekDays();
+      renderWeekGrid();
+      renderDetail();
+    }
+
+    $('[data-prev-week]').addEventListener('click', () => {
+      state.weekStart = shiftDate(state.weekStart, -7);
+      state.selectedBookingId = '';
+      closeDetailDrawer();
+      renderCabinet();
+    });
+
+    $('[data-next-week]').addEventListener('click', () => {
+      state.weekStart = shiftDate(state.weekStart, 7);
+      state.selectedBookingId = '';
+      closeDetailDrawer();
+      renderCabinet();
+    });
+
+    $('[data-current-week]').addEventListener('click', () => {
+      state.weekStart = demo.demoWeek.start_date;
+      state.selectedBookingId = '';
+      closeDetailDrawer();
+      renderCabinet();
+    });
+
+    $('[data-open-week-booking]').addEventListener('click', () => {
+      openNewBookingModal('Démo locale: le prochain écran permettra de choisir un client, un service et un créneau.');
+    });
+
+    $('[data-close-week-detail]').addEventListener('click', closeDetailDrawer);
+
+    $('[data-detail-notes]').addEventListener('input', event => {
+      const booking = getBooking(state.selectedBookingId);
+      if (booking) booking.notes = event.target.value;
+    });
+
+    $$('[data-status-action]').forEach(button => {
+      button.addEventListener('click', () => updateSelectedStatus(button.dataset.statusAction));
+    });
+
+    $$('[data-close-week-booking]').forEach(button => {
+      button.addEventListener('click', () => $('[data-week-booking-modal]').close());
+    });
+
+    $('[data-week-booking-modal]').addEventListener('click', event => {
+      if (event.target === $('[data-week-booking-modal]')) $('[data-week-booking-modal]').close();
+    });
+
+    renderCabinet();
+  </script>
+
+  <style is:global>
+    .cabinet-page {
+      min-height: 100vh;
+      min-width: 1024px;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top right, rgba(200, 169, 110, 0.14), transparent 34rem),
+        var(--paper);
+    }
+
+    .cabinet-shell {
+      position: relative;
+      min-height: calc(100vh - 48px);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: rgba(245, 242, 236, 0.96);
+      box-shadow: 0 24px 80px rgba(13, 13, 11, 0.08);
+    }
+
+    .cabinet-topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto minmax(260px, auto) auto;
+      align-items: center;
+      gap: 18px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .dashboard-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+    }
+
+    .cabinet-topbar h1,
+    .detail-panel h2,
+    .new-booking-modal h2 {
+      margin-top: 6px;
+      font-size: clamp(34px, 4vw, 52px);
+      font-weight: 300;
+      line-height: 1.05;
+    }
+
+    .cabinet-controls,
+    .practitioner-filters {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .cabinet-controls strong {
+      min-width: 260px;
+      text-align: center;
+    }
+
+    .cabinet-controls button,
+    .practitioner-filters button,
+    .new-appointment-button,
+    .detail-actions button,
+    .new-booking-modal button,
+    .drawer-close {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: var(--ink);
+      color: var(--paper);
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      padding: 12px 16px;
+      text-transform: uppercase;
+    }
+
+    .cabinet-controls button,
+    .practitioner-filters button {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .practitioner-filters button.is-active {
+      border-color: var(--accent-dark);
+      background: var(--paper-warm);
+    }
+
+    .cabinet-main {
+      position: relative;
+      min-height: calc(100vh - 136px);
+    }
+
+    .week-grid-panel {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .week-days {
+      display: grid;
+      grid-template-columns: 78px repeat(7, minmax(112px, 1fr));
+      min-width: 1040px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper-warm);
+    }
+
+    .week-days span {
+      min-height: 48px;
+      padding: 16px 12px;
+      border-right: 1px solid var(--line);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .week-time-label {
+      color: var(--accent-dark) !important;
+    }
+
+    .week-grid-scroll {
+      height: calc(100vh - 186px);
+      min-height: 660px;
+      overflow: auto;
+    }
+
+    .week-grid {
+      --week-body-height: 1160px;
+      --week-height: 1224px;
+      display: grid;
+      grid-template-columns: 78px max-content;
+      min-width: 1040px;
+      height: var(--week-height);
+    }
+
+    .week-time-rail {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      height: var(--week-height);
+      border-right: 1px solid var(--line);
+      background: rgba(237, 233, 224, 0.96);
+    }
+
+    .week-time-rail span {
+      position: absolute;
+      right: 10px;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+    }
+
+    .week-practitioner-columns {
+      display: grid;
+      grid-template-columns: repeat(var(--staff-count), minmax(780px, 1fr));
+      height: var(--week-height);
+    }
+
+    .week-practitioner-column {
+      display: grid;
+      grid-template-rows: 64px var(--week-body-height);
+      border-right: 1px solid var(--line);
+    }
+
+    .week-practitioner-column > header {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 242, 236, 0.98);
+    }
+
+    .week-practitioner-column strong {
+      display: block;
+      font-size: 22px;
+      font-weight: 300;
+      line-height: 1.1;
+    }
+
+    .week-practitioner-column header span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .week-column-body {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(112px, 1fr));
+      height: var(--week-body-height);
+    }
+
+    .week-day-lane {
+      position: relative;
+      height: var(--week-body-height);
+      border-right: 1px solid rgba(13, 13, 11, 0.08);
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 57px,
+        rgba(13, 13, 11, 0.08) 57px,
+        rgba(13, 13, 11, 0.08) 58px
+      );
+    }
+
+    .week-empty-cell {
+      position: absolute;
+      left: 0;
+      right: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .week-empty-cell:active,
+    .week-empty-cell:hover {
+      background: rgba(200, 169, 110, 0.12);
+    }
+
+    .booking-block {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      z-index: 2;
+      display: grid;
+      align-content: start;
+      gap: 3px;
+      overflow: hidden;
+      border: 0;
+      border-left: 5px solid currentColor;
+      border-radius: 8px;
+      box-shadow: 0 10px 20px rgba(13, 13, 11, 0.1);
+      cursor: pointer;
+      padding: 9px 10px;
+      text-align: left;
+      touch-action: manipulation;
+    }
+
+    .booking-block.is-selected {
+      outline: 3px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    .booking-time,
+    .booking-block span {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .booking-block strong {
+      font-size: 16px;
+      font-weight: 400;
+      line-height: 1.1;
+    }
+
+    .week-booking-block {
+      left: 6px;
+      right: 6px;
+      padding: 8px;
+    }
+
+    .status-confirmed {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .status-completed {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .status-cancelled {
+      background: #e5e7eb;
+      color: #4b5563;
+    }
+
+    .status-no-show {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .status-pending {
+      background: #fef3c7;
+      color: #a16207;
+    }
+
+    .week-detail-drawer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      z-index: 20;
+      width: min(42vw, 460px);
+      min-width: 380px;
+      height: 100%;
+      border-left: 1px solid var(--line);
+      background: var(--paper);
+      box-shadow: -24px 0 60px rgba(13, 13, 11, 0.16);
+      transform: translateX(102%);
+      transition: transform 0.28s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .week-detail-drawer.is-open {
+      transform: translateX(0);
+    }
+
+    .week-detail-drawer .detail-panel {
+      height: 100%;
+      overflow: auto;
+      padding: 72px 28px 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent),
+        var(--paper);
+    }
+
+    .drawer-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      z-index: 2;
+      width: 38px;
+      height: 38px;
+      min-height: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .detail-empty p:last-child {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 22px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .detail-list div {
+      display: grid;
+      gap: 4px;
+    }
+
+    .detail-list dt,
+    .notes-field {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .detail-list dd {
+      font-size: 19px;
+      line-height: 1.3;
+    }
+
+    .notes-field {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .notes-field textarea {
+      width: 100%;
+      min-height: 150px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.44);
+      color: var(--ink);
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 19px;
+      letter-spacing: 0;
+      line-height: 1.45;
+      padding: 14px;
+      text-transform: none;
+    }
+
+    .detail-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .detail-actions button:nth-child(3),
+    .detail-actions button:nth-child(4) {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .new-booking-modal {
+      width: min(92vw, 520px);
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      padding: 0;
+      margin: auto;
+    }
+
+    .new-booking-modal::backdrop {
+      background: rgba(13, 13, 11, 0.55);
+      backdrop-filter: blur(6px);
+    }
+
+    .new-booking-modal > div {
+      position: relative;
+      padding: 34px;
+    }
+
+    .new-booking-modal p:not(.dashboard-eyebrow) {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.55;
+    }
+
+    .new-booking-modal button:last-child {
+      width: 100%;
+      margin-top: 24px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 36px;
+      height: 36px;
+      min-height: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      color: var(--ink) !important;
+      font-size: 24px !important;
+      line-height: 1;
+    }
+
+    @media (max-width: 1200px) {
+      .cabinet-topbar {
+        grid-template-columns: 1fr auto;
+      }
+
+      .practitioner-filters {
+        grid-column: 1 / -1;
+      }
+
+      .new-appointment-button {
+        justify-self: end;
+      }
+    }
+  </style>
+</Base>
