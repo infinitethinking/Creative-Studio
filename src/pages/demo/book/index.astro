@@ -24,7 +24,7 @@ const bookingDemoData = {
         <ol class="progress-indicator" aria-label="Progression de la réservation">
           <li class="is-active" data-progress-step="1">
             <span>1</span>
-            Service
+            Prestation
           </li>
           <li data-progress-step="2">
             <span>2</span>
@@ -51,11 +51,25 @@ const bookingDemoData = {
     const dataElement = document.getElementById('booking-demo-data');
     const demo = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
 
+    const queryPractice = new URLSearchParams(window.location.search).get('practice');
+    const genericServiceNames = [
+      'Prestation express',
+      'Prestation standard',
+      'Prestation approfondie',
+      'Prestation signature',
+      'Suivi personnalisé',
+      'Bilan complet',
+    ];
+
     const state = {
       step: 1,
-      practiceId: demo.practices?.[0]?.id || '',
+      pickerStage: 'practitioner',
+      practiceId: resolvePracticeId(),
       serviceId: '',
       staffId: 'any',
+      selectedYear: '',
+      selectedMonth: '',
+      selectedDate: '',
       slot: null,
       reference: '',
       notificationPreference: 'sms',
@@ -63,15 +77,26 @@ const bookingDemoData = {
 
     const dayLabels = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
     const monthLabels = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    const longMonthLabels = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
     const $ = selector => document.querySelector(selector);
     const $$ = selector => Array.from(document.querySelectorAll(selector));
 
+    function resolvePracticeId() {
+      if (!queryPractice) return demo.practices?.[0]?.id || '';
+
+      const normalized = queryPractice.toLowerCase();
+      const matchedPractice = demo.practices.find(practice => {
+        const haystack = `${practice.id} ${practice.name} ${practice.city}`.toLowerCase();
+        return haystack.includes(normalized);
+      });
+
+      return matchedPractice?.id || demo.practices?.[0]?.id || '';
+    }
+
     const getPractice = id => demo.practices.find(practice => practice.id === id);
     const getService = id => demo.services.find(service => service.id === id);
     const getStaff = id => demo.staff.find(member => member.id === id);
-    const getStaffForPractice = practiceId =>
-      demo.staff.filter(member => member.practice_id === practiceId && member.active);
     const getStaffForService = serviceId => {
       const staffIds = demo.staff_services
         .filter(link => link.service_id === serviceId)
@@ -82,22 +107,8 @@ const bookingDemoData = {
     const formatPrice = amount => `CHF ${Number(amount).toLocaleString('fr-CH')}`;
     const getDatePart = timestamp => timestamp.slice(0, 10);
     const getTimePart = timestamp => timestamp.slice(11, 16);
-    const formatDate = date => {
-      const midday = new Date(`${date}T12:00:00`);
-      return `${dayLabels[midday.getDay()]} ${midday.getDate()} ${monthLabels[midday.getMonth()]}`;
-    };
-    const getWeekDates = () => {
-      const dates = [];
-      const cursor = new Date(`${demo.demoWeek.start_date}T12:00:00`);
-      const end = new Date(`${demo.demoWeek.end_date}T12:00:00`);
-
-      while (cursor <= end) {
-        dates.push(cursor.toISOString().slice(0, 10));
-        cursor.setDate(cursor.getDate() + 1);
-      }
-
-      return dates;
-    };
+    const getYearPart = timestamp => timestamp.slice(0, 4);
+    const getMonthPart = timestamp => timestamp.slice(5, 7);
     const escapeHtml = value =>
       String(value)
         .replaceAll('&', '&amp;')
@@ -105,6 +116,26 @@ const bookingDemoData = {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+    const unique = values => [...new Set(values)].filter(Boolean);
+
+    function formatDate(date) {
+      const midday = new Date(`${date}T12:00:00`);
+      return `${dayLabels[midday.getDay()]} ${midday.getDate()} ${monthLabels[midday.getMonth()]}`;
+    }
+
+    function getDisplayServiceName(serviceId) {
+      const practice = getPractice(state.practiceId);
+      const practiceServices = demo.services.filter(service => service.practice_id === practice?.id && service.active);
+      const index = Math.max(practiceServices.findIndex(service => service.id === serviceId), 0);
+      return genericServiceNames[index] || `Prestation ${index + 1}`;
+    }
+
+    function resetDateSelection() {
+      state.selectedYear = '';
+      state.selectedMonth = '';
+      state.selectedDate = '';
+      state.slot = null;
+    }
 
     function setStep(step) {
       state.step = step;
@@ -122,173 +153,210 @@ const bookingDemoData = {
       });
     }
 
-    function renderPracticeSwitcher() {
-      const switcher = $('[data-practice-switcher]');
-      if (!switcher) return;
-
-      switcher.innerHTML = demo.practices
-        .map(
-          practice => `
-            <button
-              class="${practice.id === state.practiceId ? 'is-selected' : ''}"
-              type="button"
-              data-practice-id="${practice.id}"
-            >
-              ${escapeHtml(practice.name)}
-            </button>
-          `
-        )
-        .join('');
-
-      switcher.querySelectorAll('button').forEach(button => {
-        button.addEventListener('click', () => {
-          state.practiceId = button.dataset.practiceId;
-          state.serviceId = '';
-          state.staffId = 'any';
-          state.slot = null;
-          state.reference = '';
-          renderServiceStep();
-        });
-      });
-    }
-
     function renderServiceStep() {
       const practice = getPractice(state.practiceId);
       const intro = $('[data-practice-intro]');
+      const brandNote = $('[data-brand-note]');
       const serviceList = $('[data-service-list]');
-      if (!practice || !intro || !serviceList) return;
+      if (!practice || !intro || !brandNote || !serviceList) return;
 
       intro.textContent = `${practice.name} · ${practice.address}, ${practice.city}`;
-      renderPracticeSwitcher();
+      brandNote.textContent = 'Dans une vraie installation, cette page reprend vos couleurs, votre logo, vos textes et vos photos.';
 
       const services = demo.services.filter(service => service.practice_id === practice.id && service.active);
       serviceList.innerHTML = services
-        .map(
-          service => `
+        .map((service, index) => {
+          const name = genericServiceNames[index] || `Prestation ${index + 1}`;
+          return `
             <article class="service-card">
               <div>
-                <h3>${escapeHtml(service.name)}</h3>
+                <h3>${escapeHtml(name)}</h3>
                 <p>${service.duration_minutes} min · ${formatPrice(service.base_price)}</p>
-                <small>${service.payment_timing === 'upfront' ? 'Paiement à la réservation' : 'Paiement après la séance'}</small>
+                <small>${service.payment_timing === 'upfront' ? 'Paiement à la réservation' : 'Paiement après le rendez-vous'}</small>
               </div>
-              <button type="button" data-service-id="${service.id}">Réserver</button>
+              <button type="button" data-service-id="${service.id}">Choisir</button>
             </article>
-          `
-        )
+          `;
+        })
         .join('');
 
       serviceList.querySelectorAll('button').forEach(button => {
         button.addEventListener('click', () => {
-          const serviceId = button.dataset.serviceId || '';
-          const eligibleStaff = getStaffForService(serviceId);
-
-          state.serviceId = serviceId;
-          state.staffId = eligibleStaff.length === 1 ? eligibleStaff[0].id : 'any';
-          state.slot = null;
+          state.serviceId = button.dataset.serviceId || '';
+          state.staffId = 'any';
+          state.pickerStage = 'practitioner';
+          resetDateSelection();
           renderDateTimeStep();
           setStep(2);
         });
       });
     }
 
-    function renderPractitionerSelector() {
-      const group = $('[data-practitioner-group]');
-      const select = $('[data-practitioner-select]');
-      const eligibleStaff = getStaffForService(state.serviceId);
-      if (!group || !select) return;
-
-      if (eligibleStaff.length <= 1) {
-        group.hidden = true;
-        state.staffId = eligibleStaff[0]?.id || 'any';
-        return;
-      }
-
-      group.hidden = false;
-      select.innerHTML = [
-        '<option value="any">Sans préférence</option>',
-        ...eligibleStaff.map(
-          member => `<option value="${member.id}">${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</option>`
-        ),
-      ].join('');
-      select.value = state.staffId;
-    }
-
-    function getFilteredSlots() {
+    function getBaseSlots() {
+      const eligibleStaffIds = getStaffForService(state.serviceId).map(member => member.id);
       return demo.availability_slots
         .filter(slot => slot.practice_id === state.practiceId)
         .filter(slot => slot.service_id === state.serviceId)
+        .filter(slot => eligibleStaffIds.includes(slot.staff_id))
         .filter(slot => state.staffId === 'any' || slot.staff_id === state.staffId)
         .sort((a, b) => a.start_time.localeCompare(b.start_time));
     }
 
+    function renderTrail() {
+      const trail = $('[data-selection-trail]');
+      if (!trail) return;
+
+      const staffMember = state.staffId === 'any' ? null : getStaff(state.staffId);
+      const parts = [getDisplayServiceName(state.serviceId)];
+      if (state.staffId) parts.push(staffMember ? `${staffMember.first_name} ${staffMember.last_name}` : 'Sans préférence');
+      if (state.selectedYear) parts.push(state.selectedYear);
+      if (state.selectedMonth) parts.push(longMonthLabels[Number(state.selectedMonth) - 1]);
+      if (state.selectedDate) parts.push(formatDate(state.selectedDate));
+
+      trail.innerHTML = parts.map(part => `<span>${escapeHtml(part)}</span>`).join('');
+    }
+
+    function renderChoiceButtons(items) {
+      return `<div class="choice-grid">${items.map(item => `
+        <button class="choice-button" type="button" data-choice="${escapeHtml(item.value)}" ${item.disabled ? 'disabled' : ''}>
+          <strong>${escapeHtml(item.label)}</strong>
+          ${item.meta ? `<span>${escapeHtml(item.meta)}</span>` : ''}
+        </button>
+      `).join('')}</div>`;
+    }
+
     function renderDateTimeStep() {
       const selectedServiceCopy = $('[data-selected-service-copy]');
-      const calendar = $('[data-week-calendar]');
-      const continueButton = $('[data-go-confirm]');
+      const title = $('[data-picker-title]');
+      const picker = $('[data-booking-picker]');
       const service = getService(state.serviceId);
-      if (!selectedServiceCopy || !calendar || !continueButton || !service) return;
+      if (!selectedServiceCopy || !title || !picker || !service) return;
 
-      selectedServiceCopy.textContent = `${service.name} · ${service.duration_minutes} min · ${formatPrice(service.base_price)}`;
-      renderPractitionerSelector();
+      selectedServiceCopy.textContent = `${getDisplayServiceName(service.id)} · ${service.duration_minutes} min · ${formatPrice(service.base_price)}`;
+      renderTrail();
 
-      const slots = getFilteredSlots();
-      const slotsByDate = new Map();
-      slots.forEach(slot => {
-        const date = getDatePart(slot.start_time);
-        slotsByDate.set(date, [...(slotsByDate.get(date) || []), slot]);
-      });
+      if (state.pickerStage === 'practitioner') renderPractitionerPicker(title, picker);
+      if (state.pickerStage === 'year') renderYearPicker(title, picker);
+      if (state.pickerStage === 'month') renderMonthPicker(title, picker);
+      if (state.pickerStage === 'day') renderDayPicker(title, picker);
+      if (state.pickerStage === 'slot') renderSlotPicker(title, picker);
+    }
 
-      calendar.innerHTML = getWeekDates()
-        .map(date => {
-          const daySlots = slotsByDate.get(date) || [];
+    function renderPractitionerPicker(title, picker) {
+      title.textContent = 'Choisissez un praticien';
+      const eligibleStaff = getStaffForService(state.serviceId);
+      picker.innerHTML = renderChoiceButtons([
+        { value: 'any', label: 'Sans préférence', meta: 'Le premier créneau disponible' },
+        ...eligibleStaff.map(member => ({
+          value: member.id,
+          label: `${member.first_name} ${member.last_name}`,
+          meta: 'Disponible selon son agenda',
+        })),
+      ]);
 
-          return `
-            <section class="day-card">
-              <h3>${formatDate(date)}</h3>
-              <div class="slot-list">
-                ${
-                  daySlots.length
-                    ? daySlots
-                        .map(slot => {
-                          const member = getStaff(slot.staff_id);
-                          const isBooked = slot.status === 'réservé';
-                          const isSelected =
-                            state.slot &&
-                            state.slot.start_time === slot.start_time &&
-                            state.slot.staff_id === slot.staff_id;
-
-                          return `
-                            <button
-                              class="slot-button ${isBooked ? 'is-booked' : ''} ${isSelected ? 'is-selected' : ''}"
-                              type="button"
-                              data-slot-start="${slot.start_time}"
-                              data-slot-staff="${slot.staff_id}"
-                              ${isBooked ? 'disabled' : ''}
-                            >
-                              <span>${getTimePart(slot.start_time)}</span>
-                              <small>${escapeHtml(member ? `${member.first_name} ${member.last_name}` : 'Praticien')}</small>
-                            </button>
-                          `;
-                        })
-                        .join('')
-                    : '<p class="empty-day">Aucun créneau</p>'
-                }
-              </div>
-            </section>
-          `;
-        })
-        .join('');
-
-      calendar.querySelectorAll('.slot-button:not(.is-booked)').forEach(button => {
+      picker.querySelectorAll('[data-choice]').forEach(button => {
         button.addEventListener('click', () => {
-          const slotStart = button.dataset.slotStart;
-          const slotStaff = button.dataset.slotStaff;
-          state.slot = slots.find(slot => slot.start_time === slotStart && slot.staff_id === slotStaff) || null;
+          state.staffId = button.dataset.choice;
+          state.pickerStage = 'year';
+          resetDateSelection();
           renderDateTimeStep();
         });
       });
+    }
 
-      continueButton.disabled = !state.slot;
+    function renderYearPicker(title, picker) {
+      title.textContent = 'Choisissez une année';
+      const years = unique(getBaseSlots().map(slot => getYearPart(slot.start_time)));
+      picker.innerHTML = renderChoiceButtons(years.map(year => ({ value: year, label: year, meta: 'Créneaux disponibles' })));
+      picker.querySelectorAll('[data-choice]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.selectedYear = button.dataset.choice;
+          state.selectedMonth = '';
+          state.selectedDate = '';
+          state.pickerStage = 'month';
+          renderDateTimeStep();
+        });
+      });
+    }
+
+    function renderMonthPicker(title, picker) {
+      title.textContent = 'Choisissez un mois';
+      const months = unique(
+        getBaseSlots()
+          .filter(slot => getYearPart(slot.start_time) === state.selectedYear)
+          .map(slot => getMonthPart(slot.start_time))
+      );
+      picker.innerHTML = renderChoiceButtons(months.map(month => ({
+        value: month,
+        label: longMonthLabels[Number(month) - 1],
+        meta: state.selectedYear,
+      })));
+      picker.querySelectorAll('[data-choice]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.selectedMonth = button.dataset.choice;
+          state.selectedDate = '';
+          state.pickerStage = 'day';
+          renderDateTimeStep();
+        });
+      });
+    }
+
+    function renderDayPicker(title, picker) {
+      title.textContent = 'Choisissez un jour';
+      const days = unique(
+        getBaseSlots()
+          .filter(slot => getYearPart(slot.start_time) === state.selectedYear)
+          .filter(slot => getMonthPart(slot.start_time) === state.selectedMonth)
+          .map(slot => getDatePart(slot.start_time))
+      );
+      picker.innerHTML = renderChoiceButtons(days.map(date => {
+        const availableCount = getBaseSlots().filter(slot => getDatePart(slot.start_time) === date && slot.status === 'disponible').length;
+        return { value: date, label: formatDate(date), meta: `${availableCount} créneau(x)` };
+      }));
+      picker.querySelectorAll('[data-choice]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.selectedDate = button.dataset.choice;
+          state.pickerStage = 'slot';
+          renderDateTimeStep();
+        });
+      });
+    }
+
+    function renderSlotPicker(title, picker) {
+      title.textContent = 'Choisissez un créneau';
+      const slots = getBaseSlots().filter(slot => getDatePart(slot.start_time) === state.selectedDate);
+      picker.innerHTML = `
+        <div class="slot-list slot-list-large">
+          ${slots.length ? slots.map(slot => {
+            const member = getStaff(slot.staff_id);
+            const isBooked = slot.status === 'réservé';
+            return `
+              <button
+                class="slot-button ${isBooked ? 'is-booked' : ''}"
+                type="button"
+                data-slot-start="${slot.start_time}"
+                data-slot-staff="${slot.staff_id}"
+                ${isBooked ? 'disabled' : ''}
+              >
+                <span>${getTimePart(slot.start_time)}</span>
+                <small>${member ? `${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}` : 'Praticien'}</small>
+              </button>
+            `;
+          }).join('') : '<p class="empty-day">Aucun créneau pour ce jour.</p>'}
+        </div>
+      `;
+
+      picker.querySelectorAll('.slot-button:not(.is-booked)').forEach(button => {
+        button.addEventListener('click', () => {
+          state.slot = slots.find(slot => slot.start_time === button.dataset.slotStart && slot.staff_id === button.dataset.slotStaff) || null;
+          if (state.slot && state.staffId === 'any') state.staffId = state.slot.staff_id;
+          $('[data-confirm-form]').hidden = false;
+          $('[data-confirmation-screen]').hidden = true;
+          $('[data-back-to-datetime]').hidden = false;
+          renderConfirmStep();
+          setStep(3);
+        });
+      });
     }
 
     function renderSummary(targetSelector, includeReference = false) {
@@ -302,8 +370,8 @@ const bookingDemoData = {
         ${includeReference ? `<p class="reference">Référence ${escapeHtml(state.reference)}</p>` : ''}
         <dl>
           <div>
-            <dt>Service</dt>
-            <dd>${escapeHtml(service.name)}</dd>
+            <dt>Prestation</dt>
+            <dd>${escapeHtml(getDisplayServiceName(service.id))}</dd>
           </div>
           <div>
             <dt>Praticien</dt>
@@ -344,7 +412,7 @@ const bookingDemoData = {
       state.reference = reference;
       const content = generateIcs({
         id: reference,
-        serviceName: service.name,
+        serviceName: getDisplayServiceName(service.id),
         practitionerName: `${staffMember.first_name} ${staffMember.last_name}`,
         practiceAddress: practice.address,
         practiceCity: practice.city,
@@ -364,27 +432,16 @@ const bookingDemoData = {
       URL.revokeObjectURL(url);
     }
 
-    $('[data-practitioner-select]')?.addEventListener('change', event => {
-      state.staffId = event.target.value;
-      state.slot = null;
-      renderDateTimeStep();
-    });
-
     $('[data-back-to-services]')?.addEventListener('click', () => {
-      state.slot = null;
+      state.pickerStage = 'practitioner';
+      state.staffId = 'any';
+      resetDateSelection();
       setStep(1);
     });
 
     $('[data-back-to-datetime]')?.addEventListener('click', () => {
+      renderDateTimeStep();
       setStep(2);
-    });
-
-    $('[data-go-confirm]')?.addEventListener('click', () => {
-      $('[data-confirm-form]').hidden = false;
-      $('[data-confirmation-screen]').hidden = true;
-      $('[data-back-to-datetime]').hidden = false;
-      renderConfirmStep();
-      setStep(3);
     });
 
     $$('[data-notification-preference]').forEach(input => {
@@ -403,17 +460,6 @@ const bookingDemoData = {
 
     $('[data-download-ics]')?.addEventListener('click', downloadIcs);
     $('[data-cancel-demo]')?.addEventListener('click', event => event.preventDefault());
-
-    const queryPractice = new URLSearchParams(window.location.search).get('practice');
-    if (queryPractice) {
-      const normalized = queryPractice.toLowerCase();
-      const matchedPractice = demo.practices.find(practice => {
-        const haystack = `${practice.name} ${practice.city}`.toLowerCase();
-        return haystack.includes(normalized);
-      });
-
-      if (matchedPractice) state.practiceId = matchedPractice.id;
-    }
 
     renderServiceStep();
     setStep(1);
@@ -513,6 +559,73 @@ const bookingDemoData = {
       color: var(--muted);
       font-size: 16px;
       line-height: 1.55;
+    }
+
+    .brand-note {
+      margin-top: 14px;
+      border-left: 3px solid var(--accent);
+      background: rgba(200, 169, 110, 0.12);
+      color: var(--accent-dark);
+      font-size: 15px;
+      line-height: 1.45;
+      padding: 12px 14px;
+    }
+
+    .selection-trail {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .selection-trail span {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      padding: 6px 9px;
+      text-transform: uppercase;
+    }
+
+    .booking-picker {
+      margin-top: 20px;
+    }
+
+    .choice-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .choice-button {
+      display: grid;
+      gap: 5px;
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.28);
+      color: var(--ink);
+      cursor: pointer;
+      padding: 16px;
+      text-align: left;
+    }
+
+    .choice-button strong {
+      font-size: 22px;
+      font-weight: 300;
+      line-height: 1.1;
+    }
+
+    .choice-button span {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .choice-button:hover {
+      border-color: var(--accent-dark);
+      background: var(--paper-warm);
     }
 
     .practice-switcher {
@@ -664,6 +777,10 @@ const bookingDemoData = {
       grid-template-columns: repeat(2, 1fr);
       gap: 8px;
       margin-top: 14px;
+    }
+
+    .slot-list-large {
+      margin-top: 0;
     }
 
     .slot-button {
