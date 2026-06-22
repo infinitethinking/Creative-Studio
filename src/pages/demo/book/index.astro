@@ -1,0 +1,836 @@
+---
+import Base from '../../../layouts/Base.astro';
+import StepConfirm from '../../../components/booking/StepConfirm.astro';
+import StepDateTime from '../../../components/booking/StepDateTime.astro';
+import StepService from '../../../components/booking/StepService.astro';
+import { demoData, demoWeek } from '../../../data/demo';
+
+const bookingDemoData = {
+  demoWeek,
+  ...demoData,
+};
+---
+
+<Base
+  title="Démo réservation - Infinite Thinking"
+  description="Démo mobile du parcours de réservation client Infinite Thinking."
+>
+  <main class="booking-page">
+    <section class="booking-app" aria-label="Démo de réservation">
+      <header class="booking-header">
+        <p>Démo client</p>
+        <h1>Réserver un rendez-vous</h1>
+
+        <ol class="progress-indicator" aria-label="Progression de la réservation">
+          <li class="is-active" data-progress-step="1">
+            <span>1</span>
+            Service
+          </li>
+          <li data-progress-step="2">
+            <span>2</span>
+            Horaire
+          </li>
+          <li data-progress-step="3">
+            <span>3</span>
+            Confirmation
+          </li>
+        </ol>
+      </header>
+
+      <StepService />
+      <StepDateTime />
+      <StepConfirm />
+    </section>
+  </main>
+
+  <script id="booking-demo-data" type="application/json" set:html={JSON.stringify(bookingDemoData)}></script>
+
+  <script>
+    const dataElement = document.getElementById('booking-demo-data');
+    const demo = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
+
+    const state = {
+      step: 1,
+      practiceId: demo.practices?.[0]?.id || '',
+      serviceId: '',
+      staffId: 'any',
+      slot: null,
+      reference: '',
+      notificationPreference: 'sms',
+    };
+
+    const dayLabels = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+    const monthLabels = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+    const $ = selector => document.querySelector(selector);
+    const $$ = selector => Array.from(document.querySelectorAll(selector));
+
+    const getPractice = id => demo.practices.find(practice => practice.id === id);
+    const getService = id => demo.services.find(service => service.id === id);
+    const getStaff = id => demo.staff.find(member => member.id === id);
+    const getStaffForPractice = practiceId =>
+      demo.staff.filter(member => member.practice_id === practiceId && member.active);
+    const getStaffForService = serviceId => {
+      const staffIds = demo.staff_services
+        .filter(link => link.service_id === serviceId)
+        .map(link => link.staff_id);
+
+      return demo.staff.filter(member => staffIds.includes(member.id) && member.active);
+    };
+    const formatPrice = amount => `CHF ${Number(amount).toLocaleString('fr-CH')}`;
+    const getDatePart = timestamp => timestamp.slice(0, 10);
+    const getTimePart = timestamp => timestamp.slice(11, 16);
+    const formatDate = date => {
+      const midday = new Date(`${date}T12:00:00`);
+      return `${dayLabels[midday.getDay()]} ${midday.getDate()} ${monthLabels[midday.getMonth()]}`;
+    };
+    const getWeekDates = () => {
+      const dates = [];
+      const cursor = new Date(`${demo.demoWeek.start_date}T12:00:00`);
+      const end = new Date(`${demo.demoWeek.end_date}T12:00:00`);
+
+      while (cursor <= end) {
+        dates.push(cursor.toISOString().slice(0, 10));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      return dates;
+    };
+    const escapeHtml = value =>
+      String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    function setStep(step) {
+      state.step = step;
+
+      $$('[data-step-panel]').forEach(panel => {
+        const isActive = panel.dataset.stepPanel === String(step);
+        panel.hidden = !isActive;
+        panel.classList.toggle('is-active', isActive);
+      });
+
+      $$('[data-progress-step]').forEach(item => {
+        const itemStep = Number(item.dataset.progressStep);
+        item.classList.toggle('is-active', itemStep === step);
+        item.classList.toggle('is-complete', itemStep < step);
+      });
+    }
+
+    function renderPracticeSwitcher() {
+      const switcher = $('[data-practice-switcher]');
+      if (!switcher) return;
+
+      switcher.innerHTML = demo.practices
+        .map(
+          practice => `
+            <button
+              class="${practice.id === state.practiceId ? 'is-selected' : ''}"
+              type="button"
+              data-practice-id="${practice.id}"
+            >
+              ${escapeHtml(practice.name)}
+            </button>
+          `
+        )
+        .join('');
+
+      switcher.querySelectorAll('button').forEach(button => {
+        button.addEventListener('click', () => {
+          state.practiceId = button.dataset.practiceId;
+          state.serviceId = '';
+          state.staffId = 'any';
+          state.slot = null;
+          state.reference = '';
+          renderServiceStep();
+        });
+      });
+    }
+
+    function renderServiceStep() {
+      const practice = getPractice(state.practiceId);
+      const intro = $('[data-practice-intro]');
+      const serviceList = $('[data-service-list]');
+      if (!practice || !intro || !serviceList) return;
+
+      intro.textContent = `${practice.name} · ${practice.address}, ${practice.city}`;
+      renderPracticeSwitcher();
+
+      const services = demo.services.filter(service => service.practice_id === practice.id && service.active);
+      serviceList.innerHTML = services
+        .map(
+          service => `
+            <article class="service-card">
+              <div>
+                <h3>${escapeHtml(service.name)}</h3>
+                <p>${service.duration_minutes} min · ${formatPrice(service.base_price)}</p>
+                <small>${service.payment_timing === 'upfront' ? 'Paiement à la réservation' : 'Paiement après la séance'}</small>
+              </div>
+              <button type="button" data-service-id="${service.id}">Réserver</button>
+            </article>
+          `
+        )
+        .join('');
+
+      serviceList.querySelectorAll('button').forEach(button => {
+        button.addEventListener('click', () => {
+          const serviceId = button.dataset.serviceId || '';
+          const eligibleStaff = getStaffForService(serviceId);
+
+          state.serviceId = serviceId;
+          state.staffId = eligibleStaff.length === 1 ? eligibleStaff[0].id : 'any';
+          state.slot = null;
+          renderDateTimeStep();
+          setStep(2);
+        });
+      });
+    }
+
+    function renderPractitionerSelector() {
+      const group = $('[data-practitioner-group]');
+      const select = $('[data-practitioner-select]');
+      const eligibleStaff = getStaffForService(state.serviceId);
+      if (!group || !select) return;
+
+      if (eligibleStaff.length <= 1) {
+        group.hidden = true;
+        state.staffId = eligibleStaff[0]?.id || 'any';
+        return;
+      }
+
+      group.hidden = false;
+      select.innerHTML = [
+        '<option value="any">Sans préférence</option>',
+        ...eligibleStaff.map(
+          member => `<option value="${member.id}">${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</option>`
+        ),
+      ].join('');
+      select.value = state.staffId;
+    }
+
+    function getFilteredSlots() {
+      return demo.availability_slots
+        .filter(slot => slot.practice_id === state.practiceId)
+        .filter(slot => slot.service_id === state.serviceId)
+        .filter(slot => state.staffId === 'any' || slot.staff_id === state.staffId)
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+
+    function renderDateTimeStep() {
+      const selectedServiceCopy = $('[data-selected-service-copy]');
+      const calendar = $('[data-week-calendar]');
+      const continueButton = $('[data-go-confirm]');
+      const service = getService(state.serviceId);
+      if (!selectedServiceCopy || !calendar || !continueButton || !service) return;
+
+      selectedServiceCopy.textContent = `${service.name} · ${service.duration_minutes} min · ${formatPrice(service.base_price)}`;
+      renderPractitionerSelector();
+
+      const slots = getFilteredSlots();
+      const slotsByDate = new Map();
+      slots.forEach(slot => {
+        const date = getDatePart(slot.start_time);
+        slotsByDate.set(date, [...(slotsByDate.get(date) || []), slot]);
+      });
+
+      calendar.innerHTML = getWeekDates()
+        .map(date => {
+          const daySlots = slotsByDate.get(date) || [];
+
+          return `
+            <section class="day-card">
+              <h3>${formatDate(date)}</h3>
+              <div class="slot-list">
+                ${
+                  daySlots.length
+                    ? daySlots
+                        .map(slot => {
+                          const member = getStaff(slot.staff_id);
+                          const isBooked = slot.status === 'réservé';
+                          const isSelected =
+                            state.slot &&
+                            state.slot.start_time === slot.start_time &&
+                            state.slot.staff_id === slot.staff_id;
+
+                          return `
+                            <button
+                              class="slot-button ${isBooked ? 'is-booked' : ''} ${isSelected ? 'is-selected' : ''}"
+                              type="button"
+                              data-slot-start="${slot.start_time}"
+                              data-slot-staff="${slot.staff_id}"
+                              ${isBooked ? 'disabled' : ''}
+                            >
+                              <span>${getTimePart(slot.start_time)}</span>
+                              <small>${escapeHtml(member ? `${member.first_name} ${member.last_name}` : 'Praticien')}</small>
+                            </button>
+                          `;
+                        })
+                        .join('')
+                    : '<p class="empty-day">Aucun créneau</p>'
+                }
+              </div>
+            </section>
+          `;
+        })
+        .join('');
+
+      calendar.querySelectorAll('.slot-button:not(.is-booked)').forEach(button => {
+        button.addEventListener('click', () => {
+          const slotStart = button.dataset.slotStart;
+          const slotStaff = button.dataset.slotStaff;
+          state.slot = slots.find(slot => slot.start_time === slotStart && slot.staff_id === slotStaff) || null;
+          renderDateTimeStep();
+        });
+      });
+
+      continueButton.disabled = !state.slot;
+    }
+
+    function renderSummary(targetSelector, includeReference = false) {
+      const target = $(targetSelector);
+      const practice = getPractice(state.practiceId);
+      const service = getService(state.serviceId);
+      const staffMember = getStaff(state.slot?.staff_id || state.staffId);
+      if (!target || !practice || !service || !staffMember || !state.slot) return;
+
+      target.innerHTML = `
+        ${includeReference ? `<p class="reference">Référence ${escapeHtml(state.reference)}</p>` : ''}
+        <dl>
+          <div>
+            <dt>Service</dt>
+            <dd>${escapeHtml(service.name)}</dd>
+          </div>
+          <div>
+            <dt>Praticien</dt>
+            <dd>${escapeHtml(staffMember.first_name)} ${escapeHtml(staffMember.last_name)}</dd>
+          </div>
+          <div>
+            <dt>Date</dt>
+            <dd>${formatDate(getDatePart(state.slot.start_time))} à ${getTimePart(state.slot.start_time)}</dd>
+          </div>
+          <div>
+            <dt>Lieu</dt>
+            <dd>${escapeHtml(practice.address)}, ${escapeHtml(practice.city)}</dd>
+          </div>
+          <div>
+            <dt>Prix</dt>
+            <dd>${formatPrice(service.base_price)}</dd>
+          </div>
+        </dl>
+      `;
+    }
+
+    function renderConfirmStep() {
+      renderSummary('[data-summary]');
+    }
+
+    function makeReference() {
+      const value = Math.floor(100000 + Math.random() * 900000);
+      return `RDV-${value}`;
+    }
+
+    function toIcsDate(timestamp) {
+      return new Date(timestamp).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    }
+
+    function buildIcsContent() {
+      const practice = getPractice(state.practiceId);
+      const service = getService(state.serviceId);
+      const staffMember = getStaff(state.slot?.staff_id || state.staffId);
+      if (!practice || !service || !staffMember || !state.slot) return '';
+
+      return [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Infinite Thinking//Démo Réservation//FR',
+        'BEGIN:VEVENT',
+        `UID:${state.reference}@demo.infinitethinking.ch`,
+        `DTSTART:${toIcsDate(state.slot.start_time)}`,
+        `DTEND:${toIcsDate(state.slot.end_time)}`,
+        `SUMMARY:${service.name} — ${staffMember.first_name} ${staffMember.last_name}`,
+        `LOCATION:${practice.address}, ${practice.city}`,
+        `DESCRIPTION:Confirmation ${state.reference}\\nAnnulation: démo uniquement`,
+        'BEGIN:VALARM',
+        'TRIGGER:-PT24H',
+        'ACTION:DISPLAY',
+        'DESCRIPTION:Rappel: votre RDV demain',
+        'END:VALARM',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+    }
+
+    function downloadIcs() {
+      const content = buildIcsContent();
+      if (!content) return;
+
+      const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${state.reference || 'rdv-demo'}.ics`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    $('[data-practitioner-select]')?.addEventListener('change', event => {
+      state.staffId = event.target.value;
+      state.slot = null;
+      renderDateTimeStep();
+    });
+
+    $('[data-back-to-services]')?.addEventListener('click', () => {
+      state.slot = null;
+      setStep(1);
+    });
+
+    $('[data-back-to-datetime]')?.addEventListener('click', () => {
+      setStep(2);
+    });
+
+    $('[data-go-confirm]')?.addEventListener('click', () => {
+      $('[data-confirm-form]').hidden = false;
+      $('[data-confirmation-screen]').hidden = true;
+      $('[data-back-to-datetime]').hidden = false;
+      renderConfirmStep();
+      setStep(3);
+    });
+
+    $$('[data-notification-preference]').forEach(input => {
+      input.addEventListener('change', event => {
+        state.notificationPreference = event.target.value;
+      });
+    });
+
+    $('[data-confirm-booking]')?.addEventListener('click', () => {
+      state.reference = makeReference();
+      $('[data-confirm-form]').hidden = true;
+      $('[data-confirmation-screen]').hidden = false;
+      $('[data-back-to-datetime]').hidden = true;
+      renderSummary('[data-confirmation-summary]', true);
+    });
+
+    $('[data-download-ics]')?.addEventListener('click', downloadIcs);
+    $('[data-cancel-demo]')?.addEventListener('click', event => event.preventDefault());
+
+    const queryPractice = new URLSearchParams(window.location.search).get('practice');
+    if (queryPractice) {
+      const normalized = queryPractice.toLowerCase();
+      const matchedPractice = demo.practices.find(practice => {
+        const haystack = `${practice.name} ${practice.city}`.toLowerCase();
+        return haystack.includes(normalized);
+      });
+
+      if (matchedPractice) state.practiceId = matchedPractice.id;
+    }
+
+    renderServiceStep();
+    setStep(1);
+  </script>
+
+  <style is:global>
+    .booking-page {
+      min-height: 100vh;
+      padding: 28px 16px 48px;
+      background:
+        radial-gradient(circle at top, rgba(200, 169, 110, 0.18), transparent 22rem),
+        var(--paper);
+    }
+
+    .booking-app {
+      width: min(100%, 420px);
+      margin: 0 auto;
+      border: 1px solid var(--line);
+      background: rgba(245, 242, 236, 0.94);
+      box-shadow: 0 24px 80px rgba(13, 13, 11, 0.08);
+    }
+
+    .booking-header {
+      padding: 28px 22px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .booking-header > p,
+    .booking-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+    }
+
+    .booking-header h1,
+    .booking-step h2 {
+      margin-top: 10px;
+      font-size: clamp(34px, 10vw, 46px);
+      font-weight: 300;
+      line-height: 1.05;
+    }
+
+    .progress-indicator {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 24px;
+      list-style: none;
+    }
+
+    .progress-indicator li {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .progress-indicator span {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--muted);
+    }
+
+    .progress-indicator .is-active,
+    .progress-indicator .is-complete {
+      color: var(--ink);
+    }
+
+    .progress-indicator .is-active span,
+    .progress-indicator .is-complete span {
+      border-color: var(--accent-dark);
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .booking-step {
+      padding: 26px 22px 28px;
+    }
+
+    .booking-step[hidden],
+    [hidden] {
+      display: none !important;
+    }
+
+    .booking-muted {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .practice-switcher {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin: 20px 0;
+    }
+
+    .practice-switcher button,
+    .back-button {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .practice-switcher button {
+      padding: 12px 14px;
+      text-align: left;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .practice-switcher button.is-selected {
+      border-color: var(--accent-dark);
+      background: var(--paper-warm);
+      color: var(--ink);
+    }
+
+    .service-list,
+    .week-calendar,
+    .field-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .service-card,
+    .summary-card,
+    .day-card {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    .service-card {
+      display: grid;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .service-card h3,
+    .day-card h3 {
+      font-size: 24px;
+      font-weight: 300;
+      line-height: 1.12;
+    }
+
+    .service-card p {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .service-card small {
+      display: block;
+      margin-top: 8px;
+      color: var(--accent-dark);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .service-card button,
+    .primary-action {
+      width: 100%;
+      border: 0;
+      background: var(--ink);
+      color: var(--paper);
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      padding: 15px 18px;
+      text-transform: uppercase;
+      transition: background 0.2s ease, opacity 0.2s ease;
+    }
+
+    .service-card button:hover,
+    .primary-action:hover {
+      background: var(--accent-dark);
+    }
+
+    .primary-action {
+      margin-top: 18px;
+    }
+
+    .primary-action:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    .back-button {
+      margin-bottom: 22px;
+      padding: 9px 12px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .field-group,
+    .field-grid label {
+      display: grid;
+      gap: 8px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .field-group select,
+    .field-grid input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.42);
+      color: var(--ink);
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 19px;
+      letter-spacing: 0;
+      padding: 13px 14px;
+      text-transform: none;
+    }
+
+    .week-calendar {
+      margin-top: 20px;
+    }
+
+    .day-card {
+      padding: 16px;
+    }
+
+    .slot-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .slot-button {
+      border: 1px solid rgba(156, 125, 71, 0.32);
+      background: rgba(200, 169, 110, 0.16);
+      color: var(--ink);
+      cursor: pointer;
+      padding: 12px 10px;
+      text-align: left;
+    }
+
+    .slot-button span,
+    .slot-button small {
+      display: block;
+    }
+
+    .slot-button span {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+    }
+
+    .slot-button small {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .slot-button.is-selected {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .slot-button.is-selected small {
+      color: rgba(245, 242, 236, 0.72);
+    }
+
+    .slot-button.is-booked {
+      border-color: var(--line);
+      background: rgba(13, 13, 11, 0.07);
+      color: var(--muted);
+      cursor: not-allowed;
+      opacity: 0.68;
+    }
+
+    .empty-day {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .summary-card {
+      margin-top: 18px;
+      padding: 18px;
+    }
+
+    .summary-card dl {
+      display: grid;
+      gap: 14px;
+    }
+
+    .summary-card div {
+      display: grid;
+      gap: 4px;
+    }
+
+    .summary-card dt {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .summary-card dd {
+      font-size: 18px;
+      line-height: 1.35;
+    }
+
+    .reference {
+      margin-bottom: 16px;
+      color: var(--accent-dark);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .preference-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 18px;
+      border: 0;
+    }
+
+    .preference-toggle legend {
+      grid-column: 1 / -1;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .preference-toggle label {
+      border: 1px solid var(--line);
+      padding: 12px;
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .preference-toggle input {
+      margin-right: 8px;
+      accent-color: var(--accent-dark);
+    }
+
+    .confirmation-screen h2 {
+      margin-bottom: 8px;
+    }
+
+    .cancel-link {
+      display: inline-block;
+      margin-top: 16px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-decoration: none;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 3px;
+    }
+
+    @media (min-width: 480px) {
+      .booking-page {
+        padding-top: 48px;
+      }
+
+      .service-card {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+      }
+
+      .service-card button {
+        width: auto;
+      }
+    }
+  </style>
+</Base>
