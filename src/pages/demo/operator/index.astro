@@ -1,0 +1,1138 @@
+---
+import Base from '../../../layouts/Base.astro';
+import BookingBlock from '../../../components/dashboard/BookingBlock.astro';
+import BookingDetail from '../../../components/dashboard/BookingDetail.astro';
+import { demoData, demoWeek } from '../../../data/demo';
+
+const operatorDemoData = {
+  demoWeek,
+  ...demoData,
+};
+---
+
+<Base
+  title="Démo opérateur - Infinite Thinking"
+  description="Démo unifiée agenda et réglages pour salon ou cabinet."
+>
+  <main class="operator-page">
+    <section class="operator-app" data-operator-app>
+      <header class="operator-topbar">
+        <div>
+          <p class="operator-eyebrow" data-practice-label>Démo opérateur</p>
+          <h1 data-operator-title>Agenda</h1>
+        </div>
+
+        <div class="operator-control-group" aria-label="Section">
+          <button class="is-active" type="button" data-tab="agenda">Agenda</button>
+          <button type="button" data-tab="settings">Réglages</button>
+        </div>
+
+        <div class="operator-control-group" aria-label="Rôle">
+          <button class="is-active" type="button" data-role="admin">Admin</button>
+          <button type="button" data-role="practitioner">Praticien</button>
+        </div>
+      </header>
+
+      <section class="agenda-view" data-agenda-view>
+        <div class="agenda-toolbar">
+          <div class="date-controls">
+            <button type="button" data-prev-period>←</button>
+            <strong data-period-label></strong>
+            <button type="button" data-next-period>→</button>
+            <button type="button" data-today>Aujourd'hui</button>
+          </div>
+
+          <div class="operator-control-group" aria-label="Vue calendrier">
+            <button class="is-active" type="button" data-calendar-view="day">Jour</button>
+            <button type="button" data-calendar-view="week">Semaine</button>
+          </div>
+
+          <div class="practitioner-filter" data-practitioner-filter></div>
+          <button class="new-booking-button" type="button" data-open-new-booking>+ Nouveau RDV</button>
+        </div>
+
+        <div class="agenda-layout">
+          <section class="calendar-shell" data-calendar-shell aria-label="Agenda"></section>
+
+          <aside class="operator-detail-drawer" data-detail-drawer>
+            <button class="drawer-close" type="button" data-close-detail aria-label="Fermer">×</button>
+            <BookingDetail />
+          </aside>
+        </div>
+      </section>
+
+      <section class="settings-view" data-settings-view hidden>
+        <div class="settings-intro">
+          <p class="operator-eyebrow">Configuration</p>
+          <h2 data-settings-title>Paramètres du cabinet</h2>
+          <p>Disponibilités, pauses, vacances, services et branding peuvent être adaptés à chaque activité.</p>
+        </div>
+
+        <div class="settings-grid">
+          <article data-admin-only>
+            <h3>Utilisateurs</h3>
+            <div data-settings-staff></div>
+            <button type="button">+ Ajouter un utilisateur</button>
+          </article>
+
+          <article>
+            <h3>Disponibilités</h3>
+            <div data-settings-availability></div>
+          </article>
+
+          <article data-admin-only>
+            <h3>Services et tarifs</h3>
+            <div data-settings-services></div>
+          </article>
+
+          <article>
+            <h3>Vacances et absences</h3>
+            <div data-settings-holidays></div>
+            <button type="button">+ Ajouter une absence</button>
+          </article>
+
+          <article data-admin-only>
+            <h3>Branding</h3>
+            <p>Logo, couleurs, textes, photos, emails, SMS et ton de voix sont configurables pour que la plateforme ressemble à votre cabinet.</p>
+          </article>
+        </div>
+      </section>
+
+      <dialog class="operator-modal" data-new-booking-modal aria-labelledby="operator-modal-title">
+        <div>
+          <button class="modal-close" type="button" data-close-new-booking aria-label="Fermer">×</button>
+          <p class="operator-eyebrow">Démo locale</p>
+          <h2 id="operator-modal-title">Nouveau rendez-vous</h2>
+          <p data-new-booking-copy></p>
+          <button type="button" data-create-local-booking hidden>Créer ce rendez-vous</button>
+          <button type="button" data-close-new-booking>Compris</button>
+        </div>
+      </dialog>
+
+      <BookingBlock />
+    </section>
+  </main>
+
+  <script id="operator-demo-data" type="application/json" set:html={JSON.stringify(operatorDemoData)}></script>
+
+  <script>
+    const dataElement = document.getElementById('operator-demo-data');
+    const demo = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
+    const params = new URLSearchParams(window.location.search);
+
+    const defaults = {
+      practice: params.get('practice') || 'cabinet',
+      device: params.get('device') || 'desktop',
+      view: params.get('view') || 'week',
+    };
+
+    const START_MINUTES = 8 * 60;
+    const END_MINUTES = 18 * 60;
+    const SLOT_MINUTES = 30;
+    const ROW_HEIGHT = defaults.device === 'tablet' ? 52 : 56;
+    const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
+    const dayLabels = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const shortDayLabels = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+    const monthLabels = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    const statusLabels = {
+      pending: 'En attente',
+      confirmed: 'Confirmé',
+      completed: 'Complété',
+      cancelled: 'Annulé',
+      no_show: 'No show',
+    };
+    const statusClass = {
+      pending: 'status-pending',
+      confirmed: 'status-confirmed',
+      completed: 'status-completed',
+      cancelled: 'status-cancelled',
+      no_show: 'status-no-show',
+    };
+    const fakeHolidays = {
+      '00000000-0000-4000-8000-000000000111': ['24.07.2026 - 02.08.2026'],
+      '00000000-0000-4000-8000-000000000112': ['10.08.2026 - 14.08.2026'],
+      '00000000-0000-4000-8000-000000000113': ['Vendredi après-midi en téléconsultation'],
+      '00000000-0000-4000-8000-000000000211': ['01.08.2026 - Fête nationale'],
+      '00000000-0000-4000-8000-000000000212': ['18.07.2026 - 25.07.2026'],
+    };
+
+    const $ = selector => document.querySelector(selector);
+    const $$ = selector => Array.from(document.querySelectorAll(selector));
+    const escapeHtml = value =>
+      String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    function resolvePracticeId() {
+      const normalized = defaults.practice.toLowerCase();
+      const matched = demo.practices.find(practice => {
+        const haystack = `${practice.id} ${practice.name} ${practice.city}`.toLowerCase();
+        return haystack.includes(normalized);
+      });
+
+      return matched?.id || demo.practices[0].id;
+    }
+
+    const practiceId = resolvePracticeId();
+    const practice = demo.practices.find(item => item.id === practiceId);
+    const staff = demo.staff.filter(member => member.practice_id === practiceId && member.active);
+    const services = demo.services.filter(service => service.practice_id === practiceId && service.active);
+    const clients = demo.clients.filter(client => client.practice_id === practiceId).map(client => ({ ...client }));
+
+    const state = {
+      tab: 'agenda',
+      role: 'admin',
+      view: defaults.view === 'day' ? 'day' : 'week',
+      activeStaffId: 'all',
+      currentDate: firstWeekday(demo.demoWeek.start_date),
+      weekStart: firstWeekday(demo.demoWeek.start_date),
+      selectedBookingId: '',
+      pendingBooking: null,
+      bookings: demo.bookings
+        .filter(booking => booking.practice_id === practiceId)
+        .map(booking => ({ ...booking })),
+    };
+
+    function firstWeekday(dateString) {
+      let date = dateString;
+      while (new Date(`${date}T12:00:00`).getDay() === 0 || new Date(`${date}T12:00:00`).getDay() === 6) {
+        date = shiftDate(date, 1);
+      }
+      return date;
+    }
+
+    function shiftDate(dateString, days) {
+      const date = new Date(`${dateString}T12:00:00`);
+      date.setDate(date.getDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function getWeekDates() {
+      const dates = [];
+      let date = state.weekStart;
+      while (dates.length < 5) {
+        const day = new Date(`${date}T12:00:00`).getDay();
+        if (day >= 1 && day <= 5) dates.push(date);
+        date = shiftDate(date, 1);
+      }
+      return dates;
+    }
+
+    function getDatePart(timestamp) {
+      return timestamp.slice(0, 10);
+    }
+
+    function getTimePart(timestamp) {
+      return timestamp.slice(11, 16);
+    }
+
+    function timeToMinutes(time) {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    }
+
+    function minutesToTime(minutes) {
+      return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    }
+
+    function makeTimestamp(date, time) {
+      return `${date}T${time}:00+02:00`;
+    }
+
+    function addMinutes(date, time, minutes) {
+      const value = new Date(`${date}T${time}:00+02:00`);
+      value.setMinutes(value.getMinutes() + minutes);
+      return `${date}T${minutesToTime(value.getHours() * 60 + value.getMinutes())}:00+02:00`;
+    }
+
+    function formatDate(dateString) {
+      const date = new Date(`${dateString}T12:00:00`);
+      return `${dayLabels[date.getDay()]} ${date.getDate()} ${monthLabels[date.getMonth()]}`;
+    }
+
+    function formatShortDate(dateString) {
+      const date = new Date(`${dateString}T12:00:00`);
+      return `${shortDayLabels[date.getDay()]} ${date.getDate()}`;
+    }
+
+    function formatPrice(amount) {
+      return `CHF ${Number(amount).toLocaleString('fr-CH')}`;
+    }
+
+    function getBooking(id) {
+      return state.bookings.find(booking => booking.id === id);
+    }
+
+    function getClient(id) {
+      return clients.find(client => client.id === id);
+    }
+
+    function getService(id) {
+      return services.find(service => service.id === id);
+    }
+
+    function getStaff(id) {
+      return staff.find(member => member.id === id);
+    }
+
+    function getVisibleStaff() {
+      if (state.role === 'practitioner') {
+        const current = getStaff(state.activeStaffId) || staff[0];
+        state.activeStaffId = current.id;
+        return [current];
+      }
+
+      return state.activeStaffId === 'all' ? staff : staff.filter(member => member.id === state.activeStaffId);
+    }
+
+    function getBookingsForDate(date) {
+      return state.bookings
+        .filter(booking => getDatePart(booking.start_time) === date)
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+
+    function getBookingsForWeek() {
+      const dates = new Set(getWeekDates());
+      return state.bookings
+        .filter(booking => dates.has(getDatePart(booking.start_time)))
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+
+    function renderShell() {
+      $('[data-operator-app]').classList.toggle('is-tablet', defaults.device === 'tablet');
+      $('[data-practice-label]').textContent = `${practice.name} · ${practice.city}`;
+      $('[data-operator-title]').textContent = state.tab === 'agenda' ? 'Agenda' : 'Réglages';
+      $('[data-settings-title]').textContent = state.role === 'admin' ? 'Paramètres du cabinet' : 'Mes paramètres';
+      $('[data-agenda-view]').hidden = state.tab !== 'agenda';
+      $('[data-settings-view]').hidden = state.tab !== 'settings';
+
+      $$('[data-tab]').forEach(button => button.classList.toggle('is-active', button.dataset.tab === state.tab));
+      $$('[data-role]').forEach(button => button.classList.toggle('is-active', button.dataset.role === state.role));
+      $$('[data-calendar-view]').forEach(button => button.classList.toggle('is-active', button.dataset.calendarView === state.view));
+      $$('[data-admin-only]').forEach(el => {
+        el.hidden = state.role !== 'admin';
+      });
+
+      renderFilters();
+      if (state.tab === 'agenda') renderAgenda();
+      if (state.tab === 'settings') renderSettings();
+    }
+
+    function renderFilters() {
+      const target = $('[data-practitioner-filter]');
+      if (state.role === 'practitioner') {
+        const current = getStaff(state.activeStaffId) || staff[0];
+        state.activeStaffId = current.id;
+        target.innerHTML = `<button class="is-active" type="button">${escapeHtml(current.first_name)} ${escapeHtml(current.last_name)}</button>`;
+        return;
+      }
+
+      target.innerHTML = [
+        `<button type="button" class="${state.activeStaffId === 'all' ? 'is-active' : ''}" data-filter-staff="all">Tous</button>`,
+        ...staff.map(member => `
+          <button type="button" class="${state.activeStaffId === member.id ? 'is-active' : ''}" data-filter-staff="${member.id}">
+            ${escapeHtml(member.first_name)}
+          </button>
+        `),
+      ].join('');
+
+      target.querySelectorAll('[data-filter-staff]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.activeStaffId = button.dataset.filterStaff;
+          state.selectedBookingId = '';
+          closeDetail();
+          renderShell();
+        });
+      });
+    }
+
+    function renderAgenda() {
+      const label = state.view === 'day'
+        ? formatDate(state.currentDate)
+        : `Semaine du ${formatDate(state.weekStart)}`;
+      $('[data-period-label]').textContent = label;
+      $('[data-calendar-shell]').innerHTML = state.view === 'day' ? buildDayView() : buildWeekView();
+      bindCalendarEvents();
+      renderDetail();
+    }
+
+    function buildTimeRail(heightOffset = 0) {
+      const labels = [];
+      for (let minutes = START_MINUTES; minutes <= END_MINUTES; minutes += SLOT_MINUTES) {
+        const top = heightOffset + ((minutes - START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+        labels.push(`<span style="top:${top}px">${minutesToTime(minutes)}</span>`);
+      }
+      return `<div class="operator-time-rail">${labels.join('')}</div>`;
+    }
+
+    function buildEmptyButton(member, date, minutes) {
+      const time = minutesToTime(minutes);
+      const top = ((minutes - START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+      return `<button class="operator-empty-slot" type="button" style="top:${top}px;height:${ROW_HEIGHT}px" data-empty-staff="${member.id}" data-empty-date="${date}" data-empty-time="${time}" aria-label="Créer un rendez-vous ${formatShortDate(date)} ${time}"></button>`;
+    }
+
+    function buildBlock(booking, includeDate = false) {
+      const client = getClient(booking.client_id);
+      const service = getService(booking.service_id);
+      const start = timeToMinutes(getTimePart(booking.start_time));
+      const end = timeToMinutes(getTimePart(booking.end_time));
+      const top = ((start - START_MINUTES) / SLOT_MINUTES) * ROW_HEIGHT;
+      const height = Math.max(((end - start) / SLOT_MINUTES) * ROW_HEIGHT - 8, 42);
+      const selected = booking.id === state.selectedBookingId ? ' is-selected' : '';
+
+      return `
+        <button
+          class="booking-block ${statusClass[booking.status] || 'status-pending'}${selected}"
+          type="button"
+          style="top:${top}px;height:${height}px"
+          data-booking-id="${booking.id}"
+        >
+          <span class="booking-time">${includeDate ? `${formatShortDate(getDatePart(booking.start_time))} · ` : ''}${getTimePart(booking.start_time)}</span>
+          <strong>${escapeHtml(client ? `${client.first_name} ${client.last_name}` : 'Client')}</strong>
+          <span>${escapeHtml(service?.name || 'Service')}</span>
+        </button>
+      `;
+    }
+
+    function buildDayView() {
+      const visibleStaff = getVisibleStaff();
+      const lanes = visibleStaff.map(member => {
+        const empties = [];
+        for (let minutes = START_MINUTES; minutes < END_MINUTES; minutes += SLOT_MINUTES) {
+          empties.push(buildEmptyButton(member, state.currentDate, minutes));
+        }
+
+        const blocks = getBookingsForDate(state.currentDate)
+          .filter(booking => booking.staff_id === member.id)
+          .map(booking => buildBlock(booking));
+
+        return `
+          <section class="operator-lane">
+            <header><strong>${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</strong><span>${member.buffer_override_minutes ?? practice.default_buffer_minutes} min buffer</span></header>
+            <div class="operator-lane-body">${empties.join('')}${blocks.join('')}</div>
+          </section>
+        `;
+      });
+
+      return `
+        <div class="operator-day-grid" style="--lane-count:${visibleStaff.length}">
+          ${buildTimeRail(58)}
+          <div class="operator-lanes">${lanes.join('')}</div>
+        </div>
+      `;
+    }
+
+    function buildWeekView() {
+      const visibleStaff = getVisibleStaff();
+      const dates = getWeekDates();
+      const columns = visibleStaff.map(member => `
+        <section class="operator-week-practitioner">
+          <header><strong>${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</strong><span>${member.buffer_override_minutes ?? practice.default_buffer_minutes} min buffer</span></header>
+          <div class="operator-week-days">
+            ${dates.map(date => {
+              const empties = [];
+              for (let minutes = START_MINUTES; minutes < END_MINUTES; minutes += SLOT_MINUTES) {
+                empties.push(buildEmptyButton(member, date, minutes));
+              }
+              const blocks = getBookingsForWeek()
+                .filter(booking => booking.staff_id === member.id && getDatePart(booking.start_time) === date)
+                .map(booking => buildBlock(booking, true));
+              return `<div class="operator-week-day"><h3>${formatShortDate(date)}</h3><div>${empties.join('')}${blocks.join('')}</div></div>`;
+            }).join('')}
+          </div>
+        </section>
+      `);
+
+      return `
+        <div class="operator-week-grid" style="--lane-count:${visibleStaff.length}">
+          ${buildTimeRail(84)}
+          <div class="operator-week-columns">${columns.join('')}</div>
+        </div>
+      `;
+    }
+
+    function bindCalendarEvents() {
+      $$('[data-booking-id]').forEach(block => {
+        block.addEventListener('click', () => {
+          state.selectedBookingId = block.dataset.bookingId;
+          openDetail();
+          renderAgenda();
+        });
+      });
+
+      $$('.operator-empty-slot').forEach(slot => {
+        slot.addEventListener('click', () => {
+          const member = getStaff(slot.dataset.emptyStaff);
+          openNewBooking(
+            `Créneau libre ${formatShortDate(slot.dataset.emptyDate)} à ${slot.dataset.emptyTime} avec ${member.first_name} ${member.last_name}.`,
+            { staffId: member.id, date: slot.dataset.emptyDate, time: slot.dataset.emptyTime }
+          );
+        });
+      });
+    }
+
+    function renderDetail() {
+      const empty = $('[data-detail-empty]');
+      const content = $('[data-detail-content]');
+      const booking = getBooking(state.selectedBookingId);
+
+      if (!booking) {
+        empty.hidden = false;
+        content.hidden = true;
+        return;
+      }
+
+      const client = getClient(booking.client_id);
+      const service = getService(booking.service_id);
+      const member = getStaff(booking.staff_id);
+      empty.hidden = true;
+      content.hidden = false;
+      $('[data-detail-status]').textContent = statusLabels[booking.status] || 'En attente';
+      $('[data-detail-status]').className = `dashboard-eyebrow ${statusClass[booking.status] || 'status-pending'}`;
+      $('[data-detail-client]').textContent = client ? `${client.first_name} ${client.last_name}` : 'Client';
+      $('[data-detail-service]').textContent = service?.name || 'Service';
+      $('[data-detail-duration]').textContent = `${service?.duration_minutes || 0} min`;
+      $('[data-detail-price]').textContent = formatPrice(booking.amount);
+      $('[data-detail-practitioner]').textContent = member ? `${member.first_name} ${member.last_name}` : 'Praticien';
+      $('[data-detail-phone]').textContent = client?.phone || '-';
+      $('[data-detail-notes]').value = booking.notes || '';
+    }
+
+    function renderSettings() {
+      const visibleStaff = state.role === 'admin' ? staff : getVisibleStaff();
+      $('[data-settings-staff]').innerHTML = staff.map(member => `<div class="settings-row"><strong>${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</strong><span>${member.role} · actif · buffer ${member.buffer_override_minutes ?? practice.default_buffer_minutes} min</span></div>`).join('');
+      $('[data-settings-availability]').innerHTML = visibleStaff.map(member => {
+        const same = weekdays.every(day => {
+          const first = member.working_hours?.mon;
+          const current = member.working_hours?.[day];
+          return first && current && first.start === current.start && first.end === current.end;
+        });
+        const rows = weekdays.map(day => {
+          const hours = member.working_hours?.[day];
+          return `<li><span>${day.toUpperCase()}</span><strong>${hours ? `${hours.start} - ${hours.end}` : 'fermé'}</strong></li>`;
+        }).join('');
+        return `<div class="settings-card"><h4>${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</h4><p>${same ? 'Mêmes horaires en semaine' : 'Horaires différents selon le jour'}</p><ul>${rows}</ul></div>`;
+      }).join('');
+      $('[data-settings-services]').innerHTML = services.map(service => `<div class="settings-row"><strong>${escapeHtml(service.name)}</strong><span>${service.duration_minutes} min · ${formatPrice(service.base_price)} · ${service.payment_timing === 'upfront' ? 'paiement avant' : 'paiement après'}</span></div>`).join('');
+      $('[data-settings-holidays]').innerHTML = visibleStaff.map(member => `<div class="settings-row"><strong>${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</strong><span>${escapeHtml((fakeHolidays[member.id] || ['Aucune absence planifiée']).join(' · '))}</span></div>`).join('');
+    }
+
+    function openDetail() {
+      $('[data-detail-drawer]').classList.add('is-open');
+    }
+
+    function closeDetail() {
+      $('[data-detail-drawer]').classList.remove('is-open');
+    }
+
+    function openNewBooking(copy, pending = null) {
+      state.pendingBooking = pending;
+      $('[data-new-booking-copy]').textContent = copy;
+      $('[data-create-local-booking]').hidden = !pending;
+      $('[data-new-booking-modal]').showModal();
+    }
+
+    function createLocalBooking() {
+      if (!state.pendingBooking) return;
+      const member = getStaff(state.pendingBooking.staffId) || staff[0];
+      const service = services[0];
+      const clientId = `operator-client-${Date.now()}`;
+      const bookingId = `operator-booking-${Date.now()}`;
+      clients.push({
+        id: clientId,
+        practice_id: practiceId,
+        first_name: 'Client',
+        last_name: 'Démo',
+        phone: '+41 79 000 00 00',
+        email: 'client-demo@example.ch',
+        preferred_channel: 'sms',
+        preferred_staff_id: member.id,
+        notes: 'Créé localement depuis la démo.',
+        last_visit_date: null,
+        no_show_count: 0,
+        imported_from: 'manual',
+        created_at: makeTimestamp(state.pendingBooking.date, state.pendingBooking.time),
+      });
+      state.bookings.push({
+        id: bookingId,
+        practice_id: practiceId,
+        staff_id: member.id,
+        service_id: service.id,
+        client_id: clientId,
+        start_time: makeTimestamp(state.pendingBooking.date, state.pendingBooking.time),
+        end_time: addMinutes(state.pendingBooking.date, state.pendingBooking.time, service.duration_minutes),
+        status: 'confirmed',
+        payment_status: service.payment_timing === 'upfront' ? 'paid' : 'unpaid',
+        payment_timing: service.payment_timing,
+        stripe_payment_id: null,
+        amount: service.base_price,
+        notes: 'Rendez-vous ajouté dans la mémoire locale de la démo.',
+        created_by: member.user_id,
+        created_at: makeTimestamp(state.pendingBooking.date, state.pendingBooking.time),
+      });
+      state.selectedBookingId = bookingId;
+      $('[data-new-booking-modal]').close();
+      state.pendingBooking = null;
+      openDetail();
+      renderShell();
+    }
+
+    $$('[data-tab]').forEach(button => {
+      button.addEventListener('click', () => {
+        state.tab = button.dataset.tab;
+        renderShell();
+      });
+    });
+
+    $$('[data-role]').forEach(button => {
+      button.addEventListener('click', () => {
+        state.role = button.dataset.role;
+        if (state.role === 'practitioner' && state.activeStaffId === 'all') state.activeStaffId = staff[0].id;
+        closeDetail();
+        renderShell();
+      });
+    });
+
+    $$('[data-calendar-view]').forEach(button => {
+      button.addEventListener('click', () => {
+        state.view = button.dataset.calendarView;
+        state.selectedBookingId = '';
+        closeDetail();
+        renderShell();
+      });
+    });
+
+    $('[data-prev-period]').addEventListener('click', () => {
+      if (state.view === 'day') state.currentDate = firstWeekday(shiftDate(state.currentDate, -1));
+      else state.weekStart = firstWeekday(shiftDate(state.weekStart, -7));
+      renderShell();
+    });
+
+    $('[data-next-period]').addEventListener('click', () => {
+      if (state.view === 'day') state.currentDate = firstWeekday(shiftDate(state.currentDate, 1));
+      else state.weekStart = firstWeekday(shiftDate(state.weekStart, 7));
+      renderShell();
+    });
+
+    $('[data-today]').addEventListener('click', () => {
+      state.currentDate = firstWeekday(demo.demoWeek.start_date);
+      state.weekStart = firstWeekday(demo.demoWeek.start_date);
+      renderShell();
+    });
+
+    $('[data-open-new-booking]').addEventListener('click', () => {
+      openNewBooking('Choisissez une cellule vide dans l’agenda pour créer un rendez-vous local, ou utilisez ce bouton comme point d’entrée manuel.');
+    });
+    $('[data-close-detail]').addEventListener('click', closeDetail);
+    $('[data-create-local-booking]').addEventListener('click', createLocalBooking);
+    $('[data-detail-notes]').addEventListener('input', event => {
+      const booking = getBooking(state.selectedBookingId);
+      if (booking) booking.notes = event.target.value;
+    });
+    $$('[data-status-action]').forEach(button => {
+      button.addEventListener('click', () => {
+        const booking = getBooking(state.selectedBookingId);
+        if (!booking) return;
+        booking.status = button.dataset.statusAction;
+        renderShell();
+      });
+    });
+    $$('[data-close-new-booking]').forEach(button => {
+      button.addEventListener('click', () => {
+        state.pendingBooking = null;
+        $('[data-new-booking-modal]').close();
+      });
+    });
+    $('[data-new-booking-modal]').addEventListener('click', event => {
+      if (event.target === $('[data-new-booking-modal]')) {
+        state.pendingBooking = null;
+        $('[data-new-booking-modal]').close();
+      }
+    });
+
+    renderShell();
+  </script>
+
+  <style is:global>
+    .operator-page {
+      min-height: 100vh;
+      min-width: 1024px;
+      background: var(--paper);
+    }
+
+    .operator-app {
+      --calendar-height: 1120px;
+      min-height: 100vh;
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    .operator-app.is-tablet {
+      min-width: 768px;
+    }
+
+    .operator-topbar,
+    .agenda-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 242, 236, 0.98);
+    }
+
+    .operator-topbar {
+      justify-content: space-between;
+    }
+
+    .operator-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+    }
+
+    .operator-topbar h1,
+    .settings-intro h2,
+    .operator-modal h2 {
+      margin-top: 4px;
+      font-size: clamp(32px, 4vw, 48px);
+      font-weight: 300;
+      line-height: 1;
+    }
+
+    .operator-control-group,
+    .date-controls,
+    .practitioner-filter {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .date-controls strong {
+      min-width: 190px;
+      text-align: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .operator-control-group button,
+    .date-controls button,
+    .practitioner-filter button,
+    .new-booking-button,
+    .settings-grid button,
+    .operator-modal button,
+    .drawer-close,
+    .detail-actions button {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.13em;
+      padding: 11px 14px;
+      text-transform: uppercase;
+    }
+
+    .operator-control-group button.is-active,
+    .practitioner-filter button.is-active,
+    .new-booking-button,
+    .settings-grid button,
+    .operator-modal button,
+    .detail-actions button {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .agenda-toolbar {
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .agenda-layout {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .calendar-shell {
+      height: calc(100vh - 138px);
+      min-height: 620px;
+      overflow: auto;
+    }
+
+    .operator-day-grid,
+    .operator-week-grid {
+      display: grid;
+      grid-template-columns: 72px max-content;
+      min-width: 100%;
+      height: var(--calendar-height);
+    }
+
+    .operator-day-grid {
+      --calendar-height: 1218px;
+    }
+
+    .operator-week-grid {
+      --calendar-height: 1204px;
+    }
+
+    .operator-time-rail {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      height: var(--calendar-height);
+      border-right: 1px solid var(--line);
+      background: var(--paper-warm);
+    }
+
+    .operator-time-rail span {
+      position: absolute;
+      right: 10px;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+    }
+
+    .operator-lanes,
+    .operator-week-columns {
+      display: grid;
+      grid-template-columns: repeat(var(--lane-count), minmax(210px, 1fr));
+      min-width: calc(var(--lane-count) * 240px);
+      height: var(--calendar-height);
+    }
+
+    .operator-lane,
+    .operator-week-practitioner {
+      display: grid;
+      grid-template-rows: 58px 1fr;
+      border-right: 1px solid var(--line);
+    }
+
+    .operator-lane header,
+    .operator-week-practitioner > header {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 242, 236, 0.98);
+    }
+
+    .operator-lane strong,
+    .operator-week-practitioner strong {
+      display: block;
+      font-size: 20px;
+      font-weight: 300;
+      line-height: 1.1;
+    }
+
+    .operator-lane span,
+    .operator-week-practitioner header span {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .operator-lane-body,
+    .operator-week-day > div {
+      position: relative;
+      height: calc(var(--calendar-height) - 58px);
+      background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 55px, rgba(13, 13, 11, 0.08) 55px, rgba(13, 13, 11, 0.08) 56px);
+    }
+
+    .operator-week-days {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      height: calc(var(--calendar-height) - 58px);
+    }
+
+    .operator-week-day {
+      display: grid;
+      grid-template-rows: 42px 1fr;
+      border-right: 1px solid rgba(13, 13, 11, 0.08);
+    }
+
+    .operator-week-day h3 {
+      padding: 13px 10px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .operator-empty-slot,
+    .booking-block {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+    }
+
+    .operator-empty-slot {
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .operator-empty-slot:hover {
+      background: rgba(200, 169, 110, 0.12);
+    }
+
+    .booking-block {
+      z-index: 2;
+      display: grid;
+      align-content: start;
+      gap: 3px;
+      overflow: hidden;
+      border: 0;
+      border-left: 5px solid currentColor;
+      border-radius: 8px;
+      box-shadow: 0 10px 20px rgba(13, 13, 11, 0.1);
+      cursor: pointer;
+      padding: 9px 10px;
+      text-align: left;
+    }
+
+    .booking-block.is-selected {
+      outline: 3px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    .booking-block span {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .booking-block strong {
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.1;
+    }
+
+    .status-confirmed { background: #dbeafe; color: #1d4ed8; }
+    .status-completed { background: #dcfce7; color: #15803d; }
+    .status-cancelled { background: #e5e7eb; color: #4b5563; }
+    .status-no-show { background: #fee2e2; color: #b91c1c; }
+    .status-pending { background: #fef3c7; color: #a16207; }
+
+    .operator-detail-drawer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      z-index: 20;
+      width: min(42vw, 460px);
+      min-width: 360px;
+      height: 100%;
+      border-left: 1px solid var(--line);
+      background: var(--paper);
+      box-shadow: -24px 0 60px rgba(13, 13, 11, 0.16);
+      transform: translateX(102%);
+      transition: transform 0.28s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .operator-detail-drawer.is-open {
+      transform: translateX(0);
+    }
+
+    .operator-detail-drawer .detail-panel {
+      height: 100%;
+      overflow: auto;
+      padding: 70px 28px 28px;
+      background: var(--paper);
+    }
+
+    .drawer-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      z-index: 2;
+      width: 38px;
+      height: 38px;
+      min-height: 0;
+      padding: 0;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .detail-list,
+    .settings-grid article {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 22px;
+      padding: 18px;
+    }
+
+    .detail-list dt,
+    .notes-field {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .notes-field {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .notes-field textarea {
+      width: 100%;
+      min-height: 140px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.44);
+      color: var(--ink);
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 19px;
+      padding: 14px;
+    }
+
+    .detail-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .settings-view {
+      padding: 28px;
+    }
+
+    .settings-intro {
+      max-width: 760px;
+      margin-bottom: 24px;
+    }
+
+    .settings-intro p:last-child {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1.45;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .settings-grid article {
+      padding: 22px;
+    }
+
+    .settings-grid h3 {
+      font-size: 30px;
+      font-weight: 300;
+      margin-bottom: 16px;
+    }
+
+    .settings-row,
+    .settings-card {
+      display: grid;
+      gap: 6px;
+      border-top: 1px solid var(--line);
+      padding: 13px 0;
+    }
+
+    .settings-row strong,
+    .settings-card h4 {
+      font-size: 19px;
+      font-weight: 300;
+    }
+
+    .settings-row span,
+    .settings-card p,
+    .settings-card li {
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      line-height: 1.45;
+      text-transform: uppercase;
+    }
+
+    .settings-card ul {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+      list-style: none;
+    }
+
+    .settings-card li {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .operator-modal {
+      width: min(92vw, 520px);
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      padding: 0;
+      margin: auto;
+    }
+
+    .operator-modal::backdrop {
+      background: rgba(13, 13, 11, 0.55);
+      backdrop-filter: blur(6px);
+    }
+
+    .operator-modal > div {
+      position: relative;
+      padding: 34px;
+    }
+
+    .operator-modal p:not(.operator-eyebrow) {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.55;
+    }
+
+    .operator-modal button:not(.modal-close) {
+      width: 100%;
+      margin-top: 16px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 36px !important;
+      min-height: 36px !important;
+      padding: 0 !important;
+      background: transparent !important;
+      color: var(--ink) !important;
+      font-size: 24px !important;
+      line-height: 1;
+    }
+
+    .operator-app.is-tablet .settings-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .operator-app.is-tablet .operator-topbar,
+    .operator-app.is-tablet .agenda-toolbar {
+      padding: 12px 14px;
+    }
+  </style>
+</Base>
