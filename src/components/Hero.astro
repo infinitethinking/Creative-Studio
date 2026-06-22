@@ -1,5 +1,8 @@
 ---
 // Hero — full-width wave dot field, text exclusion zones, cursor repulsion
+const basePath = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
 ---
 
 <section id="hero" style="
@@ -71,7 +74,7 @@
       <span style="display:block; margin-top:6px; color:var(--ink)">Geneva, Switzerland</span>
     </div>
 
-    <a href={`${import.meta.env.BASE_URL}demo/`} id="hero-cta" style="
+    <a href={`${basePath}demo/`} id="hero-cta" style="
       display: inline-flex;
       align-items: center;
       gap: 14px;
