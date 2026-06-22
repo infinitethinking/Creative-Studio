@@ -1,0 +1,268 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const basePath = import.meta.env.BASE_URL;
+const demoViews = {
+  client: {
+    src: `${basePath}demo/book?practice=barbier`,
+    label: 'Ce que vos clients voient sur leur téléphone',
+  },
+  salon: {
+    src: `${basePath}demo/dashboard?practice=barbier`,
+    label: 'Votre vue quotidienne sur tablette',
+  },
+  cabinet: {
+    src: `${basePath}demo/cabinet`,
+    label: 'Vue semaine pour un cabinet multi-praticiens',
+  },
+};
+---
+
+<Base
+  title="Démo plateforme - Infinite Thinking"
+  description="Démo interactive de la plateforme de réservation Infinite Thinking."
+>
+  <main class="demo-showcase">
+    <section class="demo-stage" aria-label="Démo interactive de la plateforme">
+      <header class="demo-header">
+        <p>Infinite Thinking · Démo</p>
+        <h1>Votre cabinet, en pilote automatique.</h1>
+      </header>
+
+      <div class="demo-toggle" role="group" aria-label="Choisir une vue de démonstration">
+        <button class="is-active" type="button" data-demo-view="client">📱 Client</button>
+        <button type="button" data-demo-view="salon">💈 Salon</button>
+        <button type="button" data-demo-view="cabinet">🏥 Cabinet</button>
+      </div>
+
+      <div class="frame-wrap" data-frame-wrap>
+        <div class="device-frame frame-client" data-device-frame>
+          <div class="frame-chrome">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <iframe
+            title="Démo client"
+            src={demoViews.client.src}
+            data-demo-frame
+            loading="eager"
+          ></iframe>
+        </div>
+      </div>
+
+      <p class="frame-label" data-frame-label>{demoViews.client.label}</p>
+
+      <a class="demo-cta" href={`${basePath}#contact`}>
+        Vous voulez ça pour votre cabinet?
+      </a>
+    </section>
+  </main>
+
+  <script id="demo-view-data" type="application/json" set:html={JSON.stringify(demoViews)}></script>
+
+  <script>
+    const viewsElement = document.getElementById('demo-view-data');
+    const views = viewsElement ? JSON.parse(viewsElement.textContent || '{}') : {};
+    const frame = document.querySelector('[data-demo-frame]');
+    const device = document.querySelector('[data-device-frame]');
+    const label = document.querySelector('[data-frame-label]');
+    const buttons = Array.from(document.querySelectorAll('[data-demo-view]'));
+
+    function setView(viewName) {
+      const view = views[viewName];
+      if (!view || !frame || !device || !label) return;
+
+      frame.src = view.src;
+      frame.title = `Démo ${viewName}`;
+      label.textContent = view.label;
+      device.className = `device-frame frame-${viewName}`;
+
+      buttons.forEach(button => {
+        button.classList.toggle('is-active', button.dataset.demoView === viewName);
+      });
+    }
+
+    buttons.forEach(button => {
+      button.addEventListener('click', () => setView(button.dataset.demoView));
+    });
+  </script>
+
+  <style>
+    .demo-showcase {
+      min-height: 100vh;
+      padding: 42px 24px 64px;
+      background:
+        radial-gradient(circle at top left, rgba(200, 169, 110, 0.2), transparent 34rem),
+        radial-gradient(circle at bottom right, rgba(245, 242, 236, 0.08), transparent 30rem),
+        #0d0d0b;
+      color: var(--paper);
+    }
+
+    .demo-stage {
+      display: grid;
+      justify-items: center;
+      gap: 26px;
+      width: min(100%, 1440px);
+      margin: 0 auto;
+    }
+
+    .demo-header {
+      max-width: 760px;
+      text-align: center;
+    }
+
+    .demo-header p {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .demo-header h1 {
+      margin-top: 14px;
+      font-size: clamp(42px, 6vw, 82px);
+      font-weight: 300;
+      line-height: 0.98;
+      letter-spacing: -0.02em;
+    }
+
+    .demo-toggle {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .demo-toggle button,
+    .demo-cta {
+      border: 1px solid rgba(245, 242, 236, 0.18);
+      background: rgba(245, 242, 236, 0.06);
+      color: var(--paper);
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      padding: 14px 18px;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease;
+    }
+
+    .demo-toggle button.is-active,
+    .demo-toggle button:hover,
+    .demo-cta:hover {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--ink);
+    }
+
+    .frame-wrap {
+      width: 100%;
+      overflow-x: auto;
+      padding: 10px 0 28px;
+    }
+
+    .device-frame {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+      margin: 0 auto;
+      border: 1px solid rgba(245, 242, 236, 0.16);
+      background: #151512;
+      box-shadow:
+        0 36px 100px rgba(0, 0, 0, 0.55),
+        0 0 0 10px rgba(245, 242, 236, 0.04);
+      transition:
+        width 0.24s ease,
+        height 0.24s ease,
+        border-radius 0.24s ease;
+    }
+
+    .frame-chrome {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      height: 34px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(245, 242, 236, 0.1);
+      background: rgba(245, 242, 236, 0.06);
+    }
+
+    .frame-chrome span {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(245, 242, 236, 0.32);
+    }
+
+    .device-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: var(--paper);
+    }
+
+    .frame-client {
+      width: 390px;
+      height: 844px;
+      border-radius: 34px;
+    }
+
+    .frame-client .frame-chrome {
+      justify-content: center;
+      height: 42px;
+    }
+
+    .frame-client .frame-chrome span {
+      width: 72px;
+      height: 6px;
+      border-radius: 999px;
+    }
+
+    .frame-client .frame-chrome span:nth-child(2),
+    .frame-client .frame-chrome span:nth-child(3) {
+      display: none;
+    }
+
+    .frame-salon {
+      width: 1024px;
+      height: 768px;
+      border-radius: 22px;
+    }
+
+    .frame-cabinet {
+      width: min(100%, 1360px);
+      height: 768px;
+      border-radius: 14px;
+    }
+
+    .frame-label {
+      max-width: 620px;
+      color: rgba(245, 242, 236, 0.72);
+      font-size: 22px;
+      line-height: 1.35;
+      text-align: center;
+    }
+
+    .demo-cta {
+      margin-top: 2px;
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    @media (max-width: 700px) {
+      .demo-showcase {
+        padding: 32px 14px 48px;
+      }
+
+      .frame-client {
+        width: min(390px, calc(100vw - 32px));
+      }
+    }
+  </style>
+</Base>

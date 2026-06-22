@@ -23,7 +23,7 @@ const dashboardDemoData = {
     const dataElement = document.getElementById('dashboard-demo-data');
     const demo = dataElement ? JSON.parse(dataElement.textContent || '{}') : {};
 
-    const PRACTICE_ID = '00000000-0000-4000-8000-000000000101';
+    const DEFAULT_PRACTICE_ID = '00000000-0000-4000-8000-000000000101';
     const DAY_START_MINUTES = 8 * 60;
     const DAY_END_MINUTES = 19 * 60;
     const SLOT_MINUTES = 30;
@@ -50,17 +50,31 @@ const dashboardDemoData = {
 
     const $ = selector => document.querySelector(selector);
     const $$ = selector => Array.from(document.querySelectorAll(selector));
+    const resolvePracticeId = () => {
+      const queryPractice = new URLSearchParams(window.location.search).get('practice');
+      if (!queryPractice) return DEFAULT_PRACTICE_ID;
+
+      const normalized = queryPractice.toLowerCase();
+      const matchedPractice = demo.practices.find(item => {
+        const haystack = `${item.id} ${item.name} ${item.city}`.toLowerCase();
+        return haystack.includes(normalized);
+      });
+
+      return matchedPractice?.id || DEFAULT_PRACTICE_ID;
+    };
+    const PRACTICE_ID = resolvePracticeId();
     const practice = demo.practices.find(item => item.id === PRACTICE_ID);
     const staff = demo.staff.filter(member => member.practice_id === PRACTICE_ID && member.active);
     const services = demo.services.filter(service => service.practice_id === PRACTICE_ID);
     const clients = demo.clients.filter(client => client.practice_id === PRACTICE_ID);
+    const practiceBookings = demo.bookings
+      .filter(booking => booking.practice_id === PRACTICE_ID)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
     const state = {
-      currentDate: demo.demoWeek.start_date,
+      currentDate: practiceBookings[0]?.start_time.slice(0, 10) || demo.demoWeek.start_date,
       selectedBookingId: '',
-      bookings: demo.bookings
-        .filter(booking => booking.practice_id === PRACTICE_ID)
-        .map(booking => ({ ...booking })),
+      bookings: practiceBookings.map(booking => ({ ...booking })),
     };
 
     function escapeHtml(value) {
